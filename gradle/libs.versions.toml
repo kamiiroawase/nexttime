@@ -1,0 +1,15 @@
+[versions]
+junit = "5.13.4"
+kotlin = "2.4.10"
+lunar = "1.7.7"
+spotless = "7.0.4"
+
+[libraries]
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+lunar = { module = "cn.6tail:lunar", version.ref = "lunar" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

@@ -1,0 +1,65 @@
+name: Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-tags: true
+
+      - uses: gradle/actions/wrapper-validation@v3
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+          cache-dependency-path: |
+            gradle/libs.versions.toml
+            gradle/wrapper/gradle-wrapper.properties
+            **/*.gradle.kts
+
+      # spotlessCheck 挂在 check 上，build 已含格式检查
+      - name: Build, test and check format
+        run: chmod +x gradlew && ./gradlew build
+
+      # JitPack 发版构建不跑测试（-xtest），发布链路只能在 CI 侧验证：
+      # 版本由 git tag 推导（依赖上方 fetch-tags），发布到本地 Maven 后动态发现版本目录，
+      # 断言四类产物齐全、且 pom 中含 lunar-java 与 kotlin-stdlib 传递依赖
+      - name: Verify Maven publishing
+        run: |
+          ./gradlew publishToMavenLocal
+          REPO="$HOME/.m2/repository/com/github/kamiiroawase/nexttime"
+          VERSION=$(find "$REPO" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | head -n 1)
+          test -n "$VERSION"
+          ARTIFACTS="$REPO/$VERSION"
+          test -f "$ARTIFACTS/nexttime-$VERSION.jar"
+          test -f "$ARTIFACTS/nexttime-$VERSION-sources.jar"
+          test -f "$ARTIFACTS/nexttime-$VERSION.pom"
+          test -f "$ARTIFACTS/nexttime-$VERSION.module"
+          grep -q cn.6tail "$ARTIFACTS/nexttime-$VERSION.pom"
+          grep -q kotlin-stdlib "$ARTIFACTS/nexttime-$VERSION.pom"
+          echo "Published artifacts verified: $VERSION"
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            build/reports/tests/**
+            build/test-results/**
+          if-no-files-found: ignore
