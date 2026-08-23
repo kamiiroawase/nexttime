@@ -1,6 +1,7 @@
 package com.github.kamiiroawase.nexttime
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -9,6 +10,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
 
 /** 公历 nextTarget：组合、步进、月末收缩、夏令时与入参校验 */
 class NextTargetTest {
@@ -76,6 +78,46 @@ class NextTargetTest {
         val target = schedule.nextTarget(zdt(2026, 8, 23), shanghai)!!
 
         assertEquals(LocalDate.of(2026, 8, 24), target.toLocalDate())
+    }
+
+    @Test
+    fun `公历天重复自1970年锚点直算远期目标`() {
+        // 远期出现按周期秒数直算步数而非逐周期组合时区；当日零点已过 now 取次日
+        val schedule = schedule(utcMillis(LocalDate.of(1970, 1, 2)), interval = 1, unit = 1)
+
+        val target = schedule.nextTarget(zdt(2026, 8, 23, 12, 0, 0), shanghai)!!
+
+        assertEquals(LocalDate.of(2026, 8, 24), target.toLocalDate())
+        assertEquals(LocalTime.MIDNIGHT, target.toLocalTime())
+    }
+
+    @Test
+    fun `公历周重复自1970年锚点保持对齐`() {
+        // 直算路径须保持与锚点的周对齐：与锚点日差为 7 的倍数、落在 now 后一周内
+        val anchor = LocalDate.of(1970, 1, 5)
+        val schedule = schedule(utcMillis(anchor), interval = 1, unit = 2)
+        val now = zdt(2026, 8, 23, 12, 0, 0)
+
+        val target = schedule.nextTarget(now, shanghai)!!
+
+        assertEquals(0L, ChronoUnit.DAYS.between(anchor, target.toLocalDate()) % 7)
+        assertFalse(target.isBefore(now))
+        assertTrue(target.isBefore(now.plusWeeks(1)))
+    }
+
+    @Test
+    fun `公历天重复跨夏令时缺口直算对齐`() {
+        // 纽约每日 02:30 跨 3/8 缺口：缺口日顺延 03:30 仅影响当日；直算步数的
+        // 估算余量须覆盖缺口顺延，仍取到 3/10 的原时刻 02:30
+        val newYork = ZoneId.of("America/New_York")
+        val schedule = schedule(utcMillis(LocalDate.of(2026, 3, 1)), 2, 30, 0, interval = 1, unit = 1)
+
+        val now = ZonedDateTime.of(2026, 3, 9, 12, 0, 0, 0, newYork)
+
+        val target = schedule.nextTarget(now, newYork)!!
+
+        assertEquals(LocalDate.of(2026, 3, 10), target.toLocalDate())
+        assertEquals(LocalTime.of(2, 30), target.toLocalTime())
     }
 
     @Test
