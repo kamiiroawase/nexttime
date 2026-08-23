@@ -428,14 +428,14 @@ class LunarNextTargetTest {
 
     @Test
     @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
-    fun `农历月重复超大间隔越过9999年立即抛IllegalStateException`() {
+    fun `农历月重复上界间隔越过9999年立即抛IllegalStateException`() {
         // 逐月推进在内层循环越过 9999 时必须立即失败：不得向 lunar-java 索取越界
-        // 年表，也不得跑完整个间隔步数（Int.MAX_VALUE 步近乎永久）
+        // 年表；取上界间隔即可覆盖（约八千年月步进，毫秒级触达）
         val schedule =
             schedule(
                 utcMillis(LocalDate.of(2026, 1, 1)),
                 lunar = true,
-                interval = Int.MAX_VALUE,
+                interval = Schedule.MAX_REPEAT_INTERVAL,
                 unit = 3,
             )
 

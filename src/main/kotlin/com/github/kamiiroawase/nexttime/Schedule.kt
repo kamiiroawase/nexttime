@@ -6,7 +6,7 @@ package com.github.kamiiroawase.nexttime
  * 构造时校验全部字段，非法取值抛 [IllegalArgumentException]：
  * [targetDay] 仅允许 -1（未选）或正的 UTC 毫秒；时分秒仅允许 -1（未选）或各自
  * 合法区间（-1 以外没有「未选」语义，如 0 与负数都会被拒绝）；[repeatInterval]
- * 须非负；[repeatUnit] 须为 [RepeatUnit] 常量之一。
+ * 须在 0..[MAX_REPEAT_INTERVAL]；[repeatUnit] 须为 [RepeatUnit] 常量之一。
  *
  * @param lunar 目标日按农历解释：月/年重复沿农历推进，天/周重复与公历无异
  * @param leapCount 农历时闰月是否参与重复推算
@@ -32,8 +32,17 @@ public data class Schedule(
         require(targetHour in -1..23) { "targetHour must be in 0..23 or -1 for unset, got: $targetHour" }
         require(targetMinute in -1..59) { "targetMinute must be in 0..59 or -1 for unset, got: $targetMinute" }
         require(targetSecond in -1..59) { "targetSecond must be in 0..59 or -1 for unset, got: $targetSecond" }
-        require(repeatInterval >= 0) { "repeatInterval must be non-negative, got: $repeatInterval" }
+        require(repeatInterval in 0..MAX_REPEAT_INTERVAL) { "repeatInterval must be in 0..$MAX_REPEAT_INTERVAL, got: $repeatInterval" }
         require(repeatUnit in RepeatUnit.NONE..RepeatUnit.YEAR) { "repeatUnit must be a RepeatUnit constant, got: $repeatUnit" }
+    }
+
+    public companion object {
+        /**
+         * [repeatInterval] 的上界：任意重复单位取上界时组合出的日期仍落在
+         * java.time 支持的年份范围内（如 2026 年锚点每 100000 年重复一次），
+         * 推算不会裸抛 JDK 的 DateTimeException。
+         */
+        public const val MAX_REPEAT_INTERVAL: Int = 100_000
     }
 }
 

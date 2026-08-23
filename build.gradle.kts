@@ -10,7 +10,8 @@ plugins {
 group = "com.github.kamiiroawase"
 
 // 版本优先级：-Pversion（JitPack 打 tag 时传入，如 v1.1.0 → 1.1.0）＞ git tag 推导
-// （CI 需 fetch-tags；HEAD 恰在 tag 上得到精确版本，之后沿用最近可达 tag）＞ 0.0.0-SNAPSHOT
+// （CI 需完整克隆 fetch-depth=0；HEAD 恰在 tag 上得到精确版本，之后沿用最近可达 tag）
+// ＞ 0.0.0-SNAPSHOT（无 tag 或无 git 环境）
 // （无 tag 或无 git 环境）。不可硬编码版本号，否则会覆盖 JitPack 传入值造成 tag 与产物版本脱节
 version =
     providers

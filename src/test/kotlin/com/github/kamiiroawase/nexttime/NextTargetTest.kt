@@ -235,6 +235,24 @@ class NextTargetTest {
         assertThrows(IllegalArgumentException::class.java) { Schedule(targetDay = 0L) }
         assertThrows(IllegalArgumentException::class.java) { Schedule(targetDay = -5L) }
         assertThrows(IllegalArgumentException::class.java) { Schedule(repeatInterval = -1) }
+        assertThrows(IllegalArgumentException::class.java) { Schedule(repeatInterval = Schedule.MAX_REPEAT_INTERVAL + 1) }
         assertThrows(IllegalArgumentException::class.java) { Schedule(repeatUnit = 7) }
+    }
+
+    @Test
+    fun `公历重复上界间隔不抛JDK异常`() {
+        // repeatInterval 上界保证合法最大间隔组合出的日期仍在 LocalDate 年份范围内
+        // （年、周是最易越界的单位），推算不裸抛 java.time 的 DateTimeException
+        val yearly = schedule(utcMillis(LocalDate.of(2026, 1, 1)), interval = Schedule.MAX_REPEAT_INTERVAL, unit = 4)
+        val weekly = schedule(utcMillis(LocalDate.of(2026, 1, 1)), interval = Schedule.MAX_REPEAT_INTERVAL, unit = 2)
+
+        assertEquals(
+            LocalDate.of(2026 + Schedule.MAX_REPEAT_INTERVAL, 1, 1),
+            yearly.nextTarget(zdt(2026, 8, 23), shanghai)!!.toLocalDate(),
+        )
+        assertEquals(
+            LocalDate.of(2026, 1, 1).plusDays(Schedule.MAX_REPEAT_INTERVAL * 7L),
+            weekly.nextTarget(zdt(2026, 8, 23), shanghai)!!.toLocalDate(),
+        )
     }
 }
