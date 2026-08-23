@@ -6,6 +6,7 @@ import com.nlf.calendar.LunarYear
 import com.nlf.calendar.Solar
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
@@ -385,5 +386,59 @@ class LunarNextTargetTest {
         assertEquals(6, LunarYear.fromYear(targetLunar.year).leapMonth)
         assertEquals(0, (targetLunar.year - 2025) % 2)
         assertTrue(target.isAfter(now))
+    }
+
+    @Test
+    fun `农历月年重复锚点超出9999年抛IllegalArgumentException`() {
+        // lunar-java 年表越界后静默返回错误数据，锚点须先于换算拦截
+        val monthly =
+            schedule(
+                utcMillis(LocalDate.of(10000, 1, 1)),
+                lunar = true,
+                interval = 1,
+                unit = 3,
+            )
+        val yearly =
+            schedule(
+                utcMillis(LocalDate.of(10000, 1, 1)),
+                lunar = true,
+                interval = 1,
+                unit = 4,
+            )
+
+        assertThrows(IllegalArgumentException::class.java) { monthly.nextTarget(zdt(2026, 8, 23), shanghai) }
+        assertThrows(IllegalArgumentException::class.java) { yearly.nextTarget(zdt(2026, 8, 23), shanghai) }
+    }
+
+    @Test
+    fun `锚点超出9999年在非农历月年路径正常返回`() {
+        // 远期锚点校验只约束农历月/年重复；公历日程与农历天/周重复不查农历年表
+        val solar = schedule(utcMillis(LocalDate.of(10000, 1, 1)), 8, 0, 0)
+        val lunarDaily =
+            schedule(
+                utcMillis(LocalDate.of(10000, 1, 1)),
+                lunar = true,
+                interval = 1,
+                unit = 1,
+            )
+
+        assertEquals(LocalDate.of(10000, 1, 1), solar.nextTarget(zdt(2026, 8, 23), shanghai)!!.toLocalDate())
+        assertEquals(LocalDate.of(10000, 1, 1), lunarDaily.nextTarget(zdt(2026, 8, 23), shanghai)!!.toLocalDate())
+    }
+
+    @Test
+    @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    fun `农历月重复超大间隔越过9999年立即抛IllegalStateException`() {
+        // 逐月推进在内层循环越过 9999 时必须立即失败：不得向 lunar-java 索取越界
+        // 年表，也不得跑完整个间隔步数（Int.MAX_VALUE 步近乎永久）
+        val schedule =
+            schedule(
+                utcMillis(LocalDate.of(2026, 1, 1)),
+                lunar = true,
+                interval = Int.MAX_VALUE,
+                unit = 3,
+            )
+
+        assertThrows(IllegalStateException::class.java) { schedule.nextTarget(zdt(2026, 2, 1), shanghai) }
     }
 }

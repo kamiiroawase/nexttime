@@ -12,7 +12,7 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 
-/** 农历推算的年份上限：超出视为超出农历数据可靠范围，规则可能永远无法命中。 */
+/** 农历推算的年份上限：lunar-java 年表越界后静默返回错误数据，越界必须显式拦截。 */
 private const val MAX_LUNAR_YEAR = 9999
 
 /**
@@ -27,6 +27,9 @@ private const val MAX_LUNAR_YEAR = 9999
  * 公历月/年重复的月末收缩以锚点日为基准：短月/平年收缩到当月最接近锚点日的
  * 一天，后续月/闰年回弹（1/31 → 2/28 → 3/31；2/29 → 平年 2/28 → 闰年 2/29），
  * 与农历路径一致。
+ *
+ * 农历月/年重复的锚点年超出 9999 抛 [IllegalArgumentException]（lunar-java
+ * 年表越界后数据不可靠）；推算推进越过 9999 抛 [IllegalStateException]。
  */
 public fun Schedule.nextTarget(
     now: ZonedDateTime = ZonedDateTime.now(),
@@ -66,6 +69,11 @@ public fun Schedule.nextTarget(
         }
 
         return next
+    }
+
+    // lunar-java 年表越界后静默返回错误数据（如虚构闰月），锚点须先于换算拦截
+    require(date.year <= MAX_LUNAR_YEAR) {
+        "targetDay resolves to year ${date.year}, beyond the reliable lunar calendar range of year $MAX_LUNAR_YEAR"
     }
 
     return nextLunarTarget(
@@ -124,7 +132,8 @@ private fun breakdown(
  * 年重复的 repeatInterval 自锚点年沿农历年格点推进：leapCount=false 的闰月日程
  * 只在恰有该闰月的格点年命中，落在格点外的真实闰月年会被跳过。
  *
- * 推算以公历 9999 年为上限，超出抛 [IllegalStateException]，不会死循环。
+ * 推算以公历 9999 年为上限（含内层逐月推进），超出抛 [IllegalStateException]，
+ * 不会死循环。
  */
 private fun Schedule.nextLunarTarget(
     first: Lunar,
@@ -136,7 +145,7 @@ private fun Schedule.nextLunarTarget(
     var month = first.month
 
     while (true) {
-        check(year <= MAX_LUNAR_YEAR) { "农历推算超出公历 $MAX_LUNAR_YEAR 年，重复规则可能永远无法命中" }
+        checkLunarYear(year)
 
         val leapMonth = LunarYear.fromYear(year).leapMonth
 
@@ -165,6 +174,9 @@ private fun Schedule.nextLunarTarget(
 
         if (repeatUnit == RepeatUnit.MONTH) {
             repeat(repeatInterval) {
+                // 内层逐月推进不经过外层循环顶部的年份检查，越界须在此立即失败
+                checkLunarYear(year)
+
                 val months =
                     if (leapCount) {
                         LunarYear.fromYear(year).months
@@ -195,5 +207,12 @@ private fun Schedule.nextLunarTarget(
         } else {
             year += repeatInterval
         }
+    }
+}
+
+/** 推算年份超出 lunar-java 可靠范围时立即失败：越界年表数据不可信，且规则可能永远无法命中。 */
+private fun checkLunarYear(year: Int) {
+    check(year <= MAX_LUNAR_YEAR) {
+        "Lunar projection exceeded year $MAX_LUNAR_YEAR, the limit of reliable lunar data; the repeat rule may never match"
     }
 }

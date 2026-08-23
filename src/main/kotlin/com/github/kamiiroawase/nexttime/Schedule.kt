@@ -28,12 +28,12 @@ public data class Schedule(
     public val repeatUnit: Int = RepeatUnit.NONE,
 ) {
     init {
-        require(targetDay == -1L || targetDay > 0) { "targetDay 须为正的 UTC 毫秒或 -1 表示未选，当前: $targetDay" }
-        require(targetHour in -1..23) { "targetHour 须在 0..23 或 -1 表示未选，当前: $targetHour" }
-        require(targetMinute in -1..59) { "targetMinute 须在 0..59 或 -1 表示未选，当前: $targetMinute" }
-        require(targetSecond in -1..59) { "targetSecond 须在 0..59 或 -1 表示未选，当前: $targetSecond" }
-        require(repeatInterval >= 0) { "repeatInterval 须非负，当前: $repeatInterval" }
-        require(repeatUnit in RepeatUnit.NONE..RepeatUnit.YEAR) { "repeatUnit 须为 RepeatUnit 常量，当前: $repeatUnit" }
+        require(targetDay == -1L || targetDay > 0) { "targetDay must be positive UTC millis or -1 for unset, got: $targetDay" }
+        require(targetHour in -1..23) { "targetHour must be in 0..23 or -1 for unset, got: $targetHour" }
+        require(targetMinute in -1..59) { "targetMinute must be in 0..59 or -1 for unset, got: $targetMinute" }
+        require(targetSecond in -1..59) { "targetSecond must be in 0..59 or -1 for unset, got: $targetSecond" }
+        require(repeatInterval >= 0) { "repeatInterval must be non-negative, got: $repeatInterval" }
+        require(repeatUnit in RepeatUnit.NONE..RepeatUnit.YEAR) { "repeatUnit must be a RepeatUnit constant, got: $repeatUnit" }
     }
 }
 
