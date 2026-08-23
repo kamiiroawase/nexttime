@@ -389,41 +389,43 @@ class LunarNextTargetTest {
     }
 
     @Test
-    fun `农历月年重复锚点超出9999年抛IllegalArgumentException`() {
-        // lunar-java 年表越界后静默返回错误数据，锚点须先于换算拦截
-        val monthly =
-            schedule(
-                utcMillis(LocalDate.of(10000, 1, 1)),
-                lunar = true,
-                interval = 1,
-                unit = 3,
-            )
-        val yearly =
-            schedule(
-                utcMillis(LocalDate.of(10000, 1, 1)),
-                lunar = true,
-                interval = 1,
-                unit = 4,
-            )
-
-        assertThrows(IllegalArgumentException::class.java) { monthly.nextTarget(zdt(2026, 8, 23), shanghai) }
-        assertThrows(IllegalArgumentException::class.java) { yearly.nextTarget(zdt(2026, 8, 23), shanghai) }
+    fun `农历月年重复锚点超出范围构造即拒`() {
+        // 范围校验前移到构造期并对全部日程生效：0001-01-01..9999-12-31 之外的
+        // 锚点日期（不区分公历/农历）在 Schedule 构造时即抛 IllegalArgumentException
+        assertThrows(IllegalArgumentException::class.java) {
+            schedule(utcMillis(LocalDate.of(10000, 1, 1)), lunar = true, interval = 1, unit = 3)
+        }
+        assertThrows(IllegalArgumentException::class.java) {
+            schedule(utcMillis(LocalDate.of(0, 1, 1)), lunar = true, interval = 1, unit = 4)
+        }
     }
 
     @Test
-    fun `锚点超出9999年在非农历月年路径正常返回`() {
-        // 远期锚点校验只约束农历月/年重复；公历日程与农历天/周重复不查农历年表
-        val solar = schedule(utcMillis(LocalDate.of(10000, 1, 1)), 8, 0, 0)
-        val lunarDaily =
-            schedule(
-                utcMillis(LocalDate.of(10000, 1, 1)),
-                lunar = true,
-                interval = 1,
-                unit = 1,
-            )
+    fun `负毫秒农历锚点1949年国庆年重复保持农历月日`() {
+        // 1949-10-01 = 农历己丑年八月初十；年重复推到 2026 年仍为农历八月初十
+        // （2026/8/10 = 公历 2026-09-20，在 now 之后）
+        val schedule = schedule(utcMillis(LocalDate.of(1949, 10, 1)), lunar = true, interval = 1, unit = 4)
 
-        assertEquals(LocalDate.of(10000, 1, 1), solar.nextTarget(zdt(2026, 8, 23), shanghai)!!.toLocalDate())
-        assertEquals(LocalDate.of(10000, 1, 1), lunarDaily.nextTarget(zdt(2026, 8, 23), shanghai)!!.toLocalDate())
+        val target = schedule.nextTarget(zdt(2026, 8, 23), shanghai)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2026, targetLunar.year)
+        assertEquals(8, targetLunar.month)
+        assertEquals(10, targetLunar.day)
+    }
+
+    @Test
+    fun `农历公元一年锚点落在农历零年可用`() {
+        // 0001-01-15 属农历 0 年腊月（实测 0/12/2），农历年表自 0 年可靠；
+        // 年重复保持农历腊月初二，推到 2026 年
+        val schedule = schedule(utcMillis(LocalDate.of(1, 1, 15)), lunar = true, interval = 1, unit = 4)
+
+        val target = schedule.nextTarget(zdt(2026, 8, 23), shanghai)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2026, targetLunar.year)
+        assertEquals(12, targetLunar.month)
+        assertEquals(2, targetLunar.day)
     }
 
     @Test

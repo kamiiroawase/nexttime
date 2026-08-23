@@ -9,7 +9,7 @@
 
 ## 特性
 
-- **目标时刻推算** `Schedule.nextTarget()`：不重复取目标日本身；重复时按周期推进到不早于当前时刻
+- **目标时刻推算** `Schedule.nextTarget()`：非重复日程取目标日本身；重复时按周期推进到不早于当前时刻
 - **公历重复**：天/周/月/年；月末收缩以锚点日为基准、后续回弹（1月31日 → 2月28日 → 3月31日），与农历一致
 - **农历重复**：月/年重复沿农历推进，闰月可选参与或跳过；日超出当月天数取月末
 - **时区安全**：目标日按 UTC 毫秒存储，组合时刻按指定时区；夏令时缺口时刻自动顺延（如纽约 02:30 → 03:30）
@@ -29,7 +29,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.kamiiroawase:nexttime:1.1.0")
+    implementation("com.github.kamiiroawase:nexttime:1.2.0")
 }
 ```
 
@@ -42,7 +42,6 @@ import com.github.kamiiroawase.nexttime.nextTarget
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZoneOffset
-import java.time.ZonedDateTime
 
 // 单次日程：2026-10-01 10:00:00（上海时区）
 val schedule = Schedule(
@@ -51,7 +50,7 @@ val schedule = Schedule(
 )
 
 val zone = ZoneId.of("Asia/Shanghai")
-val now = ZonedDateTime.now(zone)
+val now = LocalDate.of(2026, 8, 23).atTime(12, 0).atZone(zone)   // 以 2026-08-23 12:00 为例
 
 val next = schedule.nextTarget(now, zone)!!        // 2026-10-01T10:00+08:00
 val state = countdown(next, now)                   // Countdown(past = false, value = 39, unit = DAYS)
@@ -75,11 +74,11 @@ val state = countdown(next, now)                   // Countdown(past = false, va
 关于 `targetDay`：
 
 - 只取**日期**部分，固定按 UTC 解析；时分秒由 `targetHour/Minute/Second` 单独存储
-- Android 上可直接存 `MaterialDatePicker` 的返回值（本身就是 UTC 毫秒）；桌面/服务端用 `localDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()`
+- Android 上可直接存 `MaterialDatePicker` 的返回值（本身就是 UTC 毫秒，1970 前日期的负值同样直接可用）；桌面/服务端用 `localDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()`
 - 农历日程同样存锚点日期的公历 UTC 毫秒，库自动换算为农历月日参与推算
-- 只接受正数毫秒，**无法表示 1970-01-01 当天及更早的日期**（纪元日的毫秒值恰为 0，同样被拒）；1970 年前出生的生日等场景，请先把锚点换算到 1970 之后的某个周年再录入
+- 支持 **0001-01-01 至 9999-12-31**（UTC 日期）：1970-01-01 之前的日期以负毫秒表示（纪元日当天毫秒恰为 0，同样合法），1970 年前出生的生日可直接录入
 
-所有字段在构造时校验：`targetDay` 仅接受 -1（未选）或正数毫秒，时分秒仅接受 -1（未选）或各自合法区间（-1 以外没有「未选」语义），`repeatInterval` 在 0..100000（上界保证任意单位组合出的日期不超出 `java.time` 年份范围，不裸抛 JDK 异常），`repeatUnit` 必须是 `RepeatUnit` 常量；非法取值抛 `IllegalArgumentException`。
+所有字段在构造时校验：`targetDay` 仅接受 -1（未选）或解析到 0001-01-01..9999-12-31 的毫秒值（0 与负毫秒对应 1970-01-01 及更早日期，合法），时分秒仅接受 -1（未选）或各自合法区间（-1 以外没有「未选」语义），`repeatInterval` 在 0..100000（上界保证任意单位组合出的日期不超出 `java.time` 年份范围，不裸抛 JDK 异常），`repeatUnit` 必须是 `RepeatUnit` 常量；非法取值抛 `IllegalArgumentException`。
 
 ### nextTarget()
 
@@ -98,8 +97,8 @@ fun Schedule.nextTarget(
 | 时分秒任一未选 | 按 00:00:00 组合 |
 | 农历 + 天/周重复 | 与公历相同（农历日期不参与天/周步进） |
 | 公历月/年重复遇短月/平年 | 收缩到当月最接近锚点日的一天，后续回弹（1/31 → 2/28 → 3/31；2/29 → 平年 2/28 → 闰年 2/29） |
-| 农历 + 月/年重复，锚点年 > 9999 | 抛 `IllegalArgumentException`（农历年表越界后数据不可靠） |
-| 农历推算推进越过 9999 年 | 抛 `IllegalStateException`，不会死循环 |
+| 锚点日期超出 0001-01-01..9999-12-31 | 构造 `Schedule` 即抛 `IllegalArgumentException`（全部日程生效，不区分公历/农历） |
+| 农历推算推进越过可靠年表（农历 0..9999 年） | 抛 `IllegalStateException`，不会死循环 |
 
 ### countdown()
 
@@ -184,7 +183,8 @@ Schedule(
 - **年重复**：保持农历月日；闰月日日程在无该闰月的年份，`leapCount = true` 当年退化为普通月，`false` 推进到下一个有该闰月的农历年
 - **年重复间隔**：`repeatInterval` 自锚点年沿农历年格点推进；`leapCount = false` 的闰月日程只在恰有该闰月的格点年命中，落在格点外的真实闰月年会被跳过
 - **月末收缩**：日超出目标月天数时取月末（六月三十 → 闰六月廿九）；公历与农历一律以锚点日为基准收缩、后续回弹
-- **数据边界**：农历推算以公历 9999 年为上限，逐月推进在内层越过上限同样立即抛 `IllegalStateException`（不使用越界的农历年表数据）；农历日程锚点日期超出 9999 年时 `nextTarget` 抛 `IllegalArgumentException`
+- **数据边界**：农历推算限于可靠年表（农历 0..9999 年，公元 1 年年初日期即属农历 0 年），逐月推进在内层越过边界同样立即抛 `IllegalStateException`（不使用越界的农历年表数据）；锚点日期范围（0001-01-01..9999-12-31）由构造期校验统一保证
+- **历史历法**：1645 年（时宪历颁行）之前的历史日期按现代天文规则回推，与当时各朝历法的实际置闰可能有出入；生日、纪念日等近代场景不受影响
 
 以 2025 农历年（闰六月）为例，锚点六月初一、每 1 月重复：
 
@@ -202,7 +202,7 @@ Schedule(
 
 ## 已知限制与常见坑
 
-- **`targetDay` 只接受正的 UTC 毫秒**：1970-01-01 当天（纪元毫秒恰为 0）及更早日期无法表示；1970 年前出生的生日等场景，请先把锚点换算到 1970 之后的某个周年再录入
+- **`targetDay` 支持范围为 0001-01-01 至 9999-12-31（UTC 日期）**：-1 是「未选」哨兵；1970 年前日期以负毫秒表示（`MaterialDatePicker` 的负返回值可直接存入），纪元日 1970-01-01 的毫秒值 0 同样合法；范围外的年份构造 `Schedule` 即拒
 - **时分秒「要么全选、要么全不选」**：任一字段为 -1 时整体按 00:00:00 组合，其余已选字段被静默丢弃——`targetHour = 8` 而 `targetMinute = -1` 得到的是零点，不是 08:00
 - **`nextTarget(now, zone)` 成对传**：`zone` 默认系统时区；传入非默认时区的 `now` 时务必同传 `zone`，否则日期按系统时区组合、时刻与 `now` 比较，语义会静默分裂
 - **不重复日程不推进**：目标已过仍原样返回过去时刻，`countdown()` 会如实报告「已过」；需要自动推进请配置重复规则
@@ -213,13 +213,21 @@ Schedule(
 
 ## 测试
 
-52 个 JUnit 5 用例覆盖公历/农历推算、闰月、月末收缩、跨年（含无闰月年腊月边界）、DST 缺口与重叠、时区组合、入参与数据边界校验、结果不变量与倒计时状态细分。
+56 个 JUnit 5 用例覆盖公历/农历推算（含 1970 年前负毫秒锚点与范围下界）、闰月、月末收缩、跨年（含无闰月年腊月边界）、DST 缺口与重叠、时区组合、入参与数据边界校验、结果不变量与倒计时状态细分。
 
 ```
 ./gradlew build
 ```
 
 ## 版本历史
+
+### 1.2.0（2026-08-23）
+
+- `targetDay` 支持 1970 年前日期：范围放宽为 0001-01-01 至 9999-12-31（UTC 日期），0 与负毫秒（1970-01-01 当天及更早）合法，`-1` 仍为「未选」哨兵；1970 年前出生的生日可直接录入，`MaterialDatePicker` 的负毫秒返回值直接可用
+- 日期范围校验前移到构造期并对全部日程生效（此前仅农历月/年重复在 `nextTarget` 抛锚点异常）
+- 农历年表下界经实测标定（往返一致、月表结构、史实锚点三重验证），推算守护双侧化（农历 0..9999 年）；文档注明 1645 年前历史日期按现代规则回推
+- 文档修正：快速上手示例的时变输出注释改为固定时刻；「不重复取目标日本身」调整为「非重复日程取目标日本身」
+- 测试 52 → 56
 
 ### 1.1.0（2026-08-23）
 

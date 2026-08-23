@@ -232,11 +232,39 @@ class NextTargetTest {
         assertThrows(IllegalArgumentException::class.java) { Schedule(targetMinute = 60) }
         assertThrows(IllegalArgumentException::class.java) { Schedule(targetSecond = 60) }
         assertThrows(IllegalArgumentException::class.java) { Schedule(targetHour = -5) }
-        assertThrows(IllegalArgumentException::class.java) { Schedule(targetDay = 0L) }
-        assertThrows(IllegalArgumentException::class.java) { Schedule(targetDay = -5L) }
+        assertThrows(IllegalArgumentException::class.java) { Schedule(targetDay = utcMillis(LocalDate.of(0, 1, 1))) }
+        assertThrows(IllegalArgumentException::class.java) { Schedule(targetDay = utcMillis(LocalDate.of(10000, 1, 1))) }
         assertThrows(IllegalArgumentException::class.java) { Schedule(repeatInterval = -1) }
         assertThrows(IllegalArgumentException::class.java) { Schedule(repeatInterval = Schedule.MAX_REPEAT_INTERVAL + 1) }
         assertThrows(IllegalArgumentException::class.java) { Schedule(repeatUnit = 7) }
+    }
+
+    @Test
+    fun `targetDay为零即1970年当天合法`() {
+        // 纪元日 1970-01-01 的毫秒值恰为 0，曾是校验盲区；年重复自纪元日推进
+        val schedule = schedule(targetDay = 0L, interval = 1, unit = 4)
+
+        val target = schedule.nextTarget(zdt(2026, 8, 23), shanghai)!!
+
+        assertEquals(LocalDate.of(2027, 1, 1), target.toLocalDate())
+    }
+
+    @Test
+    fun `负毫秒支持1970年前公历生日年重复`() {
+        val schedule = schedule(utcMillis(LocalDate.of(1965, 6, 15)), interval = 1, unit = 4)
+
+        val target = schedule.nextTarget(zdt(2026, 8, 23), shanghai)!!
+
+        assertEquals(LocalDate.of(2027, 6, 15), target.toLocalDate())
+    }
+
+    @Test
+    fun `公元一年锚点在范围下界可用`() {
+        val schedule = schedule(utcMillis(LocalDate.of(1, 1, 1)), interval = 1, unit = 4)
+
+        val target = schedule.nextTarget(zdt(2026, 8, 23), shanghai)!!
+
+        assertEquals(LocalDate.of(2027, 1, 1), target.toLocalDate())
     }
 
     @Test
