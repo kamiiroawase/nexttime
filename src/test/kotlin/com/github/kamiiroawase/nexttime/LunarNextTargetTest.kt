@@ -5,8 +5,11 @@ import com.nlf.calendar.LunarMonth
 import com.nlf.calendar.LunarYear
 import com.nlf.calendar.Solar
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.Timeout
+import java.time.LocalDate
 import java.time.ZonedDateTime
 
 /** 农历 nextTarget：以 2025 农历年（闰六月）为核心场景 */
@@ -213,6 +216,79 @@ class LunarNextTargetTest {
         assertEquals(2026, targetLunar.year)
         assertEquals(1, targetLunar.month)
         assertEquals(1, targetLunar.day)
+    }
+
+    @Test
+    @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    fun `农历月重复腊月锚点跨无闰月年推进到次年正月`() {
+        // 2026 农历年无闰月，月表末尾是 2027 正月：自腊月步进必须连年份一并
+        // 采用下一项，否则 year 停在 2026、在正月与腊月间死循环（回归）
+        assertEquals(0, LunarYear.fromYear(2026).leapMonth)
+
+        val schedule =
+            schedule(
+                solarMillis(Lunar.fromYmd(2026, 12, 1).solar),
+                lunar = true,
+                interval = 1,
+                unit = 3,
+            )
+
+        val now = solarDate(Lunar.fromYmd(2026, 12, 1).solar).atStartOfDay(shanghai).plusHours(1)
+
+        val target = schedule.nextTarget(now, shanghai)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2027, targetLunar.year)
+        assertEquals(1, targetLunar.month)
+        assertEquals(1, targetLunar.day)
+    }
+
+    @Test
+    @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    fun `农历月重复闰月参与跨无闰月年继续推进`() {
+        // 闰六月初一、闰月参与：先跨 2025（闰年，表尾是本年腊月）再跨 2026
+        // （无闰月，表尾是次年正月）两类年份边界，均须正常推进（回归：死循环）
+        val schedule =
+            schedule(
+                solarMillis(Lunar.fromYmd(2025, -6, 1).solar),
+                lunar = true,
+                leapCount = true,
+                interval = 1,
+                unit = 3,
+            )
+
+        val now = solarDate(Lunar.fromYmd(2027, 1, 1).solar).atStartOfDay(shanghai).plusHours(1)
+
+        val target = schedule.nextTarget(now, shanghai)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2027, targetLunar.year)
+        assertEquals(2, targetLunar.month)
+        assertEquals(1, targetLunar.day)
+    }
+
+    @Test
+    @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    fun `农历月重复自1970年锚点长跨步推进`() {
+        // 锚点 1970-01-02（农历 1969 冬月廿五）推进到 2026：跨约 57 个农历年、
+        // 多数无闰月，修复前在首个无闰月年的腊月边界即死循环（回归）
+        val schedule =
+            schedule(
+                utcMillis(LocalDate.of(1970, 1, 2)),
+                lunar = true,
+                interval = 1,
+                unit = 3,
+            )
+
+        val now = zdt(2026, 8, 23, 12, 0, 0)
+
+        val target = schedule.nextTarget(now, shanghai)!!
+
+        // 月重复保持锚点日廿五（任何农历月都有廿五），且落在 now 后的一个多月内
+        val targetLunar = lunarOf(target)
+        assertEquals(25, targetLunar.day)
+        assertFalse(target.isBefore(now))
+        assertTrue(target.isBefore(now.plusDays(45)))
     }
 
     @Test

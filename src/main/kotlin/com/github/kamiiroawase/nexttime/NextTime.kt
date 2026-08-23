@@ -182,7 +182,11 @@ private fun Schedule.nextLunarTarget(
                 }
 
                 if (index in 0 until months.size - 1) {
-                    month = months[index + 1].month
+                    // 无闰月年的月表末尾是次年正月，下一项可能属于下一年；
+                    // 年份须与月份一并采用，否则 year 不推进、在当年正月与腊月间死循环
+                    val next = months[index + 1]
+                    year = next.year
+                    month = next.month
                 } else {
                     year += 1
                     month = 1
