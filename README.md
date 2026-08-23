@@ -29,7 +29,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.kamiiroawase:nexttime:1.0.0")
+    implementation("com.github.kamiiroawase:nexttime:1.1.0")
 }
 ```
 
@@ -69,7 +69,7 @@ val state = countdown(next, now)                   // Countdown(past = false, va
 | `targetHour` | Int | -1 | 目标时，-1 表示未选 |
 | `targetMinute` | Int | -1 | 目标分，-1 表示未选 |
 | `targetSecond` | Int | -1 | 目标秒，-1 表示未选 |
-| `repeatInterval` | Int | 0 | 重复间隔，0（或 `repeatUnit` 为 NONE）视为不重复 |
+| `repeatInterval` | Int | 0 | 重复间隔（0..100000，上界 `Schedule.MAX_REPEAT_INTERVAL`），0（或 `repeatUnit` 为 NONE）视为不重复 |
 | `repeatUnit` | Int | RepeatUnit.NONE | 重复单位，取 `RepeatUnit.NONE/DAY/WEEK/MONTH/YEAR` |
 
 关于 `targetDay`：
@@ -77,9 +77,9 @@ val state = countdown(next, now)                   // Countdown(past = false, va
 - 只取**日期**部分，固定按 UTC 解析；时分秒由 `targetHour/Minute/Second` 单独存储
 - Android 上可直接存 `MaterialDatePicker` 的返回值（本身就是 UTC 毫秒）；桌面/服务端用 `localDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()`
 - 农历日程同样存锚点日期的公历 UTC 毫秒，库自动换算为农历月日参与推算
-- 只接受正数毫秒，**无法表示 1970-01-01 之前的日期**；1970 年前出生的生日等场景，请先把锚点换算到 1970 之后的某个周年再录入
+- 只接受正数毫秒，**无法表示 1970-01-01 当天及更早的日期**（纪元日的毫秒值恰为 0，同样被拒）；1970 年前出生的生日等场景，请先把锚点换算到 1970 之后的某个周年再录入
 
-所有字段在构造时校验：`targetDay` 仅接受 -1（未选）或正数毫秒，时分秒仅接受 -1（未选）或各自合法区间（-1 以外没有「未选」语义），`repeatInterval` 非负，`repeatUnit` 必须是 `RepeatUnit` 常量；非法取值抛 `IllegalArgumentException`。
+所有字段在构造时校验：`targetDay` 仅接受 -1（未选）或正数毫秒，时分秒仅接受 -1（未选）或各自合法区间（-1 以外没有「未选」语义），`repeatInterval` 在 0..100000（上界保证任意单位组合出的日期不超出 `java.time` 年份范围，不裸抛 JDK 异常），`repeatUnit` 必须是 `RepeatUnit` 常量；非法取值抛 `IllegalArgumentException`。
 
 ### nextTarget()
 
@@ -200,15 +200,36 @@ Schedule(
 - 夏令时缺口时刻自动顺延：如纽约 2026-03-08 02:30 不存在（2 点跳 3 点），组合结果为 03:30；顺延只影响当日，重复的后续出现按原时刻重新组合（4 月回到 02:30）
 - 夏令时重叠时刻（秋令时回拨，如纽约 2026-11-01 01:30 出现两次）取较早的一次
 
+## 已知限制与常见坑
+
+- **`targetDay` 只接受正的 UTC 毫秒**：1970-01-01 当天（纪元毫秒恰为 0）及更早日期无法表示；1970 年前出生的生日等场景，请先把锚点换算到 1970 之后的某个周年再录入
+- **时分秒「要么全选、要么全不选」**：任一字段为 -1 时整体按 00:00:00 组合，其余已选字段被静默丢弃——`targetHour = 8` 而 `targetMinute = -1` 得到的是零点，不是 08:00
+- **`nextTarget(now, zone)` 成对传**：`zone` 默认系统时区；传入非默认时区的 `now` 时务必同传 `zone`，否则日期按系统时区组合、时刻与 `now` 比较，语义会静默分裂
+- **不重复日程不推进**：目标已过仍原样返回过去时刻，`countdown()` 会如实报告「已过」；需要自动推进请配置重复规则
+- **`countdown()` 只有单一量级**：满一天取天、不足一天取小时……没有周单位，也没有复合细分（如「3天4小时」）；复合展示由消费方用两个 `ZonedDateTime` 自行计算
+- **农历数据边界 9999**：农历月/年重复的锚点年超出 9999 抛 `IllegalArgumentException`，推算推进越过 9999 抛 `IllegalStateException`（不会死循环）——lunar-java 年表越界后会静默返回错误数据，本库在边界显式拦截
+- **`repeatInterval` 上界 100000**：更大的间隔在构造时即抛 `IllegalArgumentException`；上界保证任意单位组合出的日期不超出 `java.time` 年份范围，推算不裸抛 JDK 异常
+- **Android minSdk 26+**：更低版本需开启 core library desugaring（`java.time`）
+
 ## 测试
 
-51 个 JUnit 5 用例覆盖公历/农历推算、闰月、月末收缩、跨年（含无闰月年腊月边界）、DST 缺口与重叠、时区组合、入参与数据边界校验、结果不变量与倒计时状态细分。
+52 个 JUnit 5 用例覆盖公历/农历推算、闰月、月末收缩、跨年（含无闰月年腊月边界）、DST 缺口与重叠、时区组合、入参与数据边界校验、结果不变量与倒计时状态细分。
 
 ```
 ./gradlew build
 ```
 
 ## 版本历史
+
+### 1.1.0（2026-08-23）
+
+- 修复农历月重复跨无闰月农历年腊月边界的死循环：月表末尾的次年正月须连年份一并采用，`MAX_LUNAR_YEAR` 守护恢复有效
+- 农历推算加固：锚点年超出 9999 在历法换算前即抛 `IllegalArgumentException`；逐月推进越过 9999 立即抛 `IllegalStateException`，不消费 lunar-java 越界年表的错误数据
+- `repeatInterval` 增加上界 100000（`Schedule.MAX_REPEAT_INTERVAL`），任意单位组合日期均不超出 `java.time` 范围，不再裸抛 JDK `DateTimeException`
+- 性能：公历天/周重复按周期秒直算远期出现（1970→2026 每日重复单次调用 1.63ms → 0.01ms）；农历长跨度跳过远期年份的历法换算、年表按年缓存（农历月重复 95.77ms → 16.10ms）
+- 异常文案统一英文；README 新增「已知限制与常见坑」章节
+- CI 改完整克隆并断言发布版本非 `0.0.0-SNAPSHOT`，tag 推导失效立即红
+- 测试 42 → 52
 
 ### 1.0.0（2026-08-23）
 
