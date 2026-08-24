@@ -13,6 +13,8 @@ import java.time.ZonedDateTime
 class InvariantTest {
     private val newYork: ZoneId = ZoneId.of("America/New_York")
 
+    private val apia: ZoneId = ZoneId.of("Pacific/Apia")
+
     private val repeatingSchedules =
         listOf(
             schedule(utcMillis(LocalDate.of(2020, 1, 1)), interval = 1, unit = 4),
@@ -28,6 +30,10 @@ class InvariantTest {
             schedule(utcMillis(LocalDate.of(2025, 12, 31)), interval = 2, unit = 3),
             schedule(utcMillis(LocalDate.of(2024, 2, 29)), interval = 2, unit = 4),
             schedule(solarMillis(Lunar.fromYmd(2025, 5, 1).solar), lunar = true, leapCount = true, interval = 2, unit = 3),
+            // 1970 前锚点、农历间隔 2 年重复、闰月参与年重复（Apia 时区见 cases）
+            schedule(utcMillis(LocalDate.of(1965, 6, 15)), interval = 1, unit = 4),
+            schedule(solarMillis(Lunar.fromYmd(2025, 6, 10).solar), lunar = true, interval = 2, unit = 4),
+            schedule(solarMillis(Lunar.fromYmd(2025, -6, 1).solar), lunar = true, leapCount = true, interval = 1, unit = 4),
         )
 
     // 扫多个 now：2027-03 已跨过 2026 农历年（无闰月）的腊月边界，
@@ -38,6 +44,7 @@ class InvariantTest {
             zdt(2027, 3, 15, 12, 0, 0) to shanghai,
             ZonedDateTime.of(2026, 8, 23, 12, 0, 0, 0, newYork) to newYork,
             ZonedDateTime.of(2027, 3, 15, 12, 0, 0, 0, newYork) to newYork,
+            ZonedDateTime.of(2026, 8, 23, 12, 0, 0, 0, apia) to apia,
         )
 
     @Test

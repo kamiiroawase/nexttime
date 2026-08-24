@@ -584,4 +584,165 @@ class LunarNextTargetTest {
 
         assertThrows(IllegalStateException::class.java) { schedule.nextTarget(zdt(2026, 2, 1), shanghai) }
     }
+
+    @Test
+    fun `农历年重复三十锚点小月年收缩到廿九`() {
+        // 2025 七月三十（大月）每年重复：2026 七月只有 29 天，收缩到七月廿九
+        // （年重复与月重复共用 minOf 收缩，此前只有月重复路径被钉住）
+        val schedule =
+            schedule(
+                solarMillis(Lunar.fromYmd(2025, 7, 30).solar),
+                lunar = true,
+                interval = 1,
+                unit = 4,
+            )
+
+        val now = solarDate(Lunar.fromYmd(2025, 7, 30).solar).atStartOfDay(shanghai).plusDays(1)
+
+        val target = schedule.nextTarget(now, shanghai)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2026, targetLunar.year)
+        assertEquals(7, targetLunar.month)
+        assertEquals(29, targetLunar.day)
+    }
+
+    @Test
+    fun `闰月三十锚点年重复闰月年收缩到廿九`() {
+        // 2017 闰六月三十（闰六月大三十天）每年重复、闰月参与：无闰六月的年份
+        // 退化普通六月，2025 闰六月只有 29 天收缩到闰六月廿九
+        val schedule =
+            schedule(
+                solarMillis(Lunar.fromYmd(2017, -6, 30).solar),
+                lunar = true,
+                leapCount = true,
+                interval = 1,
+                unit = 4,
+            )
+
+        val now = solarDate(Lunar.fromYmd(2025, 6, 15).solar).atStartOfDay(shanghai)
+
+        val target = schedule.nextTarget(now, shanghai)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2025, targetLunar.year)
+        assertEquals(-6, targetLunar.month)
+        assertEquals(29, targetLunar.day)
+    }
+
+    @Test
+    fun `农历月重复间隔二跨年推进到次年二月`() {
+        // 腊月初一每 2 月：第 1 步落入 2026 正月（月表末尾跨年条目，年份连月采用），
+        // 第 2 步落到二月；跨年 + 多间隔组合此前只有单间隔被钉住
+        val schedule =
+            schedule(
+                solarMillis(Lunar.fromYmd(2025, 12, 1).solar),
+                lunar = true,
+                interval = 2,
+                unit = 3,
+            )
+
+        val now = solarDate(Lunar.fromYmd(2026, 1, 15).solar).atStartOfDay(shanghai)
+
+        val target = schedule.nextTarget(now, shanghai)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2026, targetLunar.year)
+        assertEquals(2, targetLunar.month)
+        assertEquals(1, targetLunar.day)
+    }
+
+    @Test
+    fun `闰月日日程月重复闰月参与沿月序到次月`() {
+        // 闰六月初五、闰月参与：自闰六月起沿含闰月的月表步进到七月初五
+        // （同场景闰月不参与已测，闰月参与方向对称补齐）
+        val schedule =
+            schedule(
+                solarMillis(Lunar.fromYmd(2025, -6, 5).solar),
+                lunar = true,
+                leapCount = true,
+                interval = 1,
+                unit = 3,
+            )
+
+        val now = solarDate(Lunar.fromYmd(2025, -6, 6).solar).atStartOfDay(shanghai)
+
+        val target = schedule.nextTarget(now, shanghai)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2025, targetLunar.year)
+        assertEquals(7, targetLunar.month)
+        assertEquals(5, targetLunar.day)
+    }
+
+    @Test
+    fun `闰月日年重复参与间隔二格点年退化普通月`() {
+        // 闰六月初一每 2 年、闰月参与：格点年 2027 无闰六月，当年退化为普通六月初一
+        // （格点 + 退化组合此前只有单间隔被钉住）
+        assertEquals(0, LunarYear.fromYear(2027).leapMonth)
+
+        val schedule =
+            schedule(
+                solarMillis(Lunar.fromYmd(2025, -6, 1).solar),
+                lunar = true,
+                leapCount = true,
+                interval = 2,
+                unit = 4,
+            )
+
+        val target = schedule.nextTarget(zdt(2026, 1, 1), shanghai)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2027, targetLunar.year)
+        assertEquals(6, targetLunar.month)
+        assertEquals(1, targetLunar.day)
+    }
+
+    @Test
+    @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    fun `农历月重复锚点在上界立即抛IllegalStateException`() {
+        // 锚点本身即农历 9999 年腊月（9999-12-31 = 腊月初二）：单步跨入 10000 年
+        // 必须立即失败，而非消费越界年表数据（大间隔起跳已测，边界锚点补齐）
+        val schedule =
+            schedule(
+                utcMillis(LocalDate.of(9999, 12, 31)),
+                lunar = true,
+                interval = 1,
+                unit = 3,
+            )
+
+        val now = ZonedDateTime.of(10000, 3, 1, 0, 0, 0, 0, shanghai)
+
+        assertThrows(IllegalStateException::class.java) { schedule.nextTarget(now, shanghai) }
+    }
+
+    @Test
+    @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    fun `农历年重复锚点在上界立即抛IllegalStateException`() {
+        // 年重复沿 year += repeatInterval 推进（与逐月步进不同的路径），边界锚点
+        // 同样单步越界立即失败
+        val schedule =
+            schedule(
+                utcMillis(LocalDate.of(9999, 12, 31)),
+                lunar = true,
+                interval = 1,
+                unit = 4,
+            )
+
+        val now = ZonedDateTime.of(10000, 3, 1, 0, 0, 0, 0, shanghai)
+
+        assertThrows(IllegalStateException::class.java) { schedule.nextTarget(now, shanghai) }
+    }
+
+    @Test
+    fun `农历非重复日程返回公历锚点日`() {
+        // lunar 标志只在月/年重复时生效：非重复日程原样返回锚点公历日期，不做农历换算
+        val anchor = solarDate(Lunar.fromYmd(2026, 8, 10).solar)
+        val schedule = schedule(utcMillis(anchor), lunar = true)
+
+        val target = schedule.nextTarget(zdt(2026, 8, 23), shanghai)!!
+
+        assertEquals(anchor, target.toLocalDate())
+        assertEquals(LocalTime.MIDNIGHT, target.toLocalTime())
+    }
 }

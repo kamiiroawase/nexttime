@@ -144,4 +144,84 @@ class CountdownTest {
             ),
         )
     }
+
+    @Test
+    fun `恰满一天取天`() {
+        // 恰好 86400 秒：days >= 1 的边界值取天，已过对称
+        assertEquals(
+            Countdown(false, 1, CountdownUnit.DAYS),
+            countdown(zdt(2026, 8, 24, 12, 0, 0), zdt(2026, 8, 23, 12, 0, 0)),
+        )
+        assertEquals(
+            Countdown(true, 1, CountdownUnit.DAYS),
+            countdown(zdt(2026, 8, 22, 12, 0, 0), zdt(2026, 8, 23, 12, 0, 0)),
+        )
+    }
+
+    @Test
+    fun `恰满一小时取小时`() {
+        // 恰好 3600 秒：hours >= 1 的边界值取小时
+        assertEquals(
+            Countdown(false, 1, CountdownUnit.HOURS),
+            countdown(zdt(2026, 8, 23, 13, 0, 0), zdt(2026, 8, 23, 12, 0, 0)),
+        )
+    }
+
+    @Test
+    fun `恰满一分取分`() {
+        // 恰好 60 秒：minutes >= 1 的边界值取分
+        assertEquals(
+            Countdown(false, 1, CountdownUnit.MINUTES),
+            countdown(zdt(2026, 8, 23, 12, 1, 0), zdt(2026, 8, 23, 12, 0, 0)),
+        )
+    }
+
+    @Test
+    fun `日边界亚秒进位翻量级为天`() {
+        // 剩余 23:59:59.5：向上取整为 86400 秒，翻量级为 1 天而非 23 小时，已过对称
+        val now = zdt(2026, 8, 23, 12, 0, 0, nano = 500_000_000)
+
+        assertEquals(
+            Countdown(false, 1, CountdownUnit.DAYS),
+            countdown(zdt(2026, 8, 24, 12, 0, 0), now),
+        )
+        assertEquals(
+            Countdown(true, 1, CountdownUnit.DAYS),
+            countdown(zdt(2026, 8, 22, 12, 0, 0), now),
+        )
+    }
+
+    @Test
+    fun `时边界亚秒进位翻量级为小时`() {
+        // 剩余 59:59.5：向上取整为 3600 秒，翻量级为 1 小时而非 59 分
+        val now = zdt(2026, 8, 23, 12, 0, 0, nano = 500_000_000)
+
+        assertEquals(
+            Countdown(false, 1, CountdownUnit.HOURS),
+            countdown(zdt(2026, 8, 23, 13, 0, 0), now),
+        )
+    }
+
+    @Test
+    fun `已过多日取天`() {
+        // 已过 2 天整：value 大于 1 的多日已过细分
+        assertEquals(
+            Countdown(true, 2, CountdownUnit.DAYS),
+            countdown(zdt(2026, 8, 21, 12, 0, 0), zdt(2026, 8, 23, 12, 0, 0)),
+        )
+    }
+
+    @Test
+    fun `同一瞬间分处不同时区为零秒`() {
+        // 上海 12:00(+08) 与纽约 00:00(-04) 是同一瞬间：同样输出未到 0 秒
+        val newYork = ZoneId.of("America/New_York")
+
+        assertEquals(
+            Countdown(false, 0, CountdownUnit.SECONDS),
+            countdown(
+                zdt(2026, 8, 23, 12, 0, 0),
+                ZonedDateTime.of(2026, 8, 23, 0, 0, 0, 0, newYork),
+            ),
+        )
+    }
 }

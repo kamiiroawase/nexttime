@@ -339,6 +339,8 @@ class NextTargetTest {
         assertThrows(IllegalArgumentException::class.java) { Schedule(repeatInterval = -1) }
         assertThrows(IllegalArgumentException::class.java) { Schedule(repeatInterval = Schedule.MAX_REPEAT_INTERVAL + 1) }
         assertThrows(IllegalArgumentException::class.java) { Schedule(repeatUnit = 7) }
+        assertThrows(IllegalArgumentException::class.java) { Schedule(repeatUnit = -1) }
+        assertThrows(IllegalArgumentException::class.java) { Schedule(repeatUnit = 5) }
     }
 
     @Test
@@ -435,5 +437,134 @@ class NextTargetTest {
 
         assertEquals(ZonedDateTime.of(2026, 10, 1, 10, 0, 0, 0, shanghai), target)
         assertEquals(Countdown(false, 38, CountdownUnit.DAYS), countdown(target, now))
+    }
+
+    @Test
+    fun `公历天重复跨秋令时回拨保持对齐`() {
+        // 每日 01:30 跨 11/1 回拨：回拨日取较早的 EDT（锚点本身即重叠日 01:30），
+        // 下一出现按原时刻重新组合为 EST；直算路径须越过重叠日落到 11/2
+        val newYork = ZoneId.of("America/New_York")
+        val schedule = schedule(utcMillis(LocalDate.of(2026, 11, 1)), 1, 30, 0, interval = 1, unit = 1)
+
+        val now = ZonedDateTime.of(2026, 11, 1, 3, 0, 0, 0, newYork)
+
+        val target = schedule.nextTarget(now, newYork)!!
+
+        assertEquals(LocalDate.of(2026, 11, 2), target.toLocalDate())
+        assertEquals(LocalTime.of(1, 30), target.toLocalTime())
+        assertEquals("-05:00", target.offset.id)
+    }
+
+    @Test
+    fun `公历周重复跨春令时缺口直算对齐`() {
+        // 每周日 02:30：3/8 缺口日（周日）顺延 03:30 仅影响当日；直算步数须
+        // 覆盖缺口顺延取到该日（周×缺口方向与天×回拨方向对称补齐）
+        val newYork = ZoneId.of("America/New_York")
+        val schedule = schedule(utcMillis(LocalDate.of(2026, 3, 1)), 2, 30, 0, interval = 1, unit = 2)
+
+        val now = ZonedDateTime.of(2026, 3, 7, 12, 0, 0, 0, newYork)
+
+        val target = schedule.nextTarget(now, newYork)!!
+
+        assertEquals(LocalDate.of(2026, 3, 8), target.toLocalDate())
+        assertEquals(LocalTime.of(3, 30), target.toLocalTime())
+        assertEquals("-04:00", target.offset.id)
+    }
+
+    @Test
+    fun `公历周重复跨Apia跳日整天缺口顺延`() {
+        // 每周五 00:00：2011-12-30（周五）整天不存在，该次出现顺延到 12/31
+        // 零点 +14:00；周直算与天直算同受 48 小时余量覆盖
+        val apia = ZoneId.of("Pacific/Apia")
+        val schedule = schedule(utcMillis(LocalDate.of(2011, 12, 2)), interval = 1, unit = 2)
+
+        val now = ZonedDateTime.of(2011, 12, 26, 12, 0, 0, 0, apia)
+
+        val target = schedule.nextTarget(now, apia)!!
+
+        assertEquals(LocalDate.of(2011, 12, 31), target.toLocalDate())
+        assertEquals(LocalTime.MIDNIGHT, target.toLocalTime())
+        assertEquals("+14:00", target.offset.id)
+    }
+
+    @Test
+    fun `公历天重复跨Kwajalein跳日整天缺口顺延`() {
+        // Kwajalein 1993-08-21 整天不存在（8/20 末自 -12 跳 +12 到 8/22）：当日
+        // 出现顺延到 8/22 零点，24 小时跳变仍在直算步数的估算余量内
+        val kwajalein = ZoneId.of("Pacific/Kwajalein")
+        val schedule = schedule(utcMillis(LocalDate.of(1993, 8, 15)), interval = 1, unit = 1)
+
+        val now = ZonedDateTime.of(1993, 8, 20, 12, 0, 0, 0, kwajalein)
+
+        val target = schedule.nextTarget(now, kwajalein)!!
+
+        assertEquals(LocalDate.of(1993, 8, 22), target.toLocalDate())
+        assertEquals(LocalTime.MIDNIGHT, target.toLocalTime())
+        assertEquals("+12:00", target.offset.id)
+    }
+
+    @Test
+    fun `南半球夏令时缺口时刻顺延`() {
+        // 悉尼 2026-10-04 02:30 不存在（2 点跳 3 点，季节与北半球相反），
+        // 缺口顺延同样适用
+        val sydney = ZoneId.of("Australia/Sydney")
+        val schedule = schedule(utcMillis(LocalDate.of(2026, 10, 4)), 2, 30, 0)
+
+        val now = ZonedDateTime.of(2026, 9, 20, 12, 0, 0, 0, sydney)
+
+        val target = schedule.nextTarget(now, sydney)!!
+
+        assertEquals(LocalTime.of(3, 30), target.toLocalTime())
+        assertEquals("+11:00", target.offset.id)
+    }
+
+    @Test
+    fun `南半球夏令时重叠时刻取较早一次`() {
+        // 悉尼 2026-04-05 02:30 出现两次（回拨前 AEDT 与回拨后 AEST），取较早的 AEDT
+        val sydney = ZoneId.of("Australia/Sydney")
+        val schedule = schedule(utcMillis(LocalDate.of(2026, 4, 5)), 2, 30, 0)
+
+        val target = schedule.nextTarget(ZonedDateTime.of(2026, 3, 20, 12, 0, 0, 0, sydney), sydney)!!
+
+        assertEquals(LocalTime.of(2, 30), target.toLocalTime())
+        assertEquals("+11:00", target.offset.id)
+    }
+
+    @Test
+    fun `半时区按日程时区组合`() {
+        // 半小时偏移时区无夏令时，组合偏移 +05:30
+        val kolkata = ZoneId.of("Asia/Kolkata")
+        val schedule = schedule(utcMillis(LocalDate.of(2026, 8, 24)), 8, 30, 0)
+
+        val target = schedule.nextTarget(zdt(2026, 8, 23, 12, 0, 0), kolkata)!!
+
+        assertEquals(LocalDate.of(2026, 8, 24), target.toLocalDate())
+        assertEquals(LocalTime.of(8, 30), target.toLocalTime())
+        assertEquals("+05:30", target.offset.id)
+    }
+
+    @Test
+    fun `午夜跳变时区零时刻顺延`() {
+        // 哈瓦那 2026-03-08 00:00 起跳（午夜即缺口）：未选时刻的默认零点顺延到 01:00
+        val havana = ZoneId.of("America/Havana")
+        val schedule = schedule(utcMillis(LocalDate.of(2026, 3, 8)))
+
+        val now = ZonedDateTime.of(2026, 3, 7, 12, 0, 0, 0, havana)
+
+        val target = schedule.nextTarget(now, havana)!!
+
+        assertEquals(LocalTime.of(1, 0), target.toLocalTime())
+        assertEquals("-04:00", target.offset.id)
+    }
+
+    @Test
+    fun `时分秒上界组合合法`() {
+        // 23:59:59 是合法上界组合，须与 -1 之外的非法取值区分
+        val schedule = schedule(utcMillis(LocalDate.of(2026, 8, 24)), 23, 59, 59)
+
+        val target = schedule.nextTarget(zdt(2026, 8, 23, 12, 0, 0), shanghai)!!
+
+        assertEquals(LocalDate.of(2026, 8, 24), target.toLocalDate())
+        assertEquals(LocalTime.of(23, 59, 59), target.toLocalTime())
     }
 }
