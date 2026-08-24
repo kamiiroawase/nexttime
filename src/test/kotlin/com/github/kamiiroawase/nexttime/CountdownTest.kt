@@ -2,6 +2,8 @@ package com.github.kamiiroawase.nexttime
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 /** countdown：量级细分、已过/未到对称与秒级取整 */
 class CountdownTest {
@@ -98,6 +100,48 @@ class CountdownTest {
         assertEquals(
             Countdown(true, 1, CountdownUnit.MINUTES),
             countdown(zdt(2026, 8, 23, 11, 59, 0), now),
+        )
+    }
+
+    @Test
+    fun `目标与当前恰为同一瞬间为零秒`() {
+        // KDoc 承诺：同一瞬间不进位、不报已过，输出未到 0 秒
+        val now = zdt(2026, 8, 23, 12, 0, 0)
+
+        assertEquals(Countdown(false, 0, CountdownUnit.SECONDS), countdown(now, now))
+    }
+
+    @Test
+    fun `跨夏令时按真实时长细分`() {
+        // Duration 按时刻差计算：墙钟同为一天，跨春令时的一天实隔 23 小时取小时
+        // （缺口日 3/8 当天），跨秋令时回拨的一天实隔 25 小时满一天取天（回拨日 11/1 当天）
+        val newYork = ZoneId.of("America/New_York")
+
+        assertEquals(
+            Countdown(false, 23, CountdownUnit.HOURS),
+            countdown(
+                ZonedDateTime.of(2026, 3, 9, 0, 0, 0, 0, newYork),
+                ZonedDateTime.of(2026, 3, 8, 0, 0, 0, 0, newYork),
+            ),
+        )
+        assertEquals(
+            Countdown(false, 1, CountdownUnit.DAYS),
+            countdown(
+                ZonedDateTime.of(2026, 11, 2, 0, 0, 0, 0, newYork),
+                ZonedDateTime.of(2026, 11, 1, 0, 0, 0, 0, newYork),
+            ),
+        )
+    }
+
+    @Test
+    fun `目标与当前分处不同时区按时刻差计算`() {
+        // 纽约 8/23 12:00(-04) 到上海 8/24 12:00(+08) 实隔 12 小时
+        assertEquals(
+            Countdown(false, 12, CountdownUnit.HOURS),
+            countdown(
+                zdt(2026, 8, 24, 12, 0, 0),
+                ZonedDateTime.of(2026, 8, 23, 12, 0, 0, 0, ZoneId.of("America/New_York")),
+            ),
         )
     }
 }

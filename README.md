@@ -29,7 +29,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.github.kamiiroawase:nexttime:1.2.0")
+    implementation("com.github.kamiiroawase:nexttime:1.2.1")
 }
 ```
 
@@ -53,7 +53,7 @@ val zone = ZoneId.of("Asia/Shanghai")
 val now = LocalDate.of(2026, 8, 23).atTime(12, 0).atZone(zone)   // 以 2026-08-23 12:00 为例
 
 val next = schedule.nextTarget(now, zone)!!        // 2026-10-01T10:00+08:00
-val state = countdown(next, now)                   // Countdown(past = false, value = 39, unit = DAYS)
+val state = countdown(next, now)                   // Countdown(past = false, value = 38, unit = DAYS)（实隔 38 天 22 小时，取天向下取整）
 ```
 
 ## API
@@ -91,7 +91,7 @@ fun Schedule.nextTarget(
 
 | 场景 | 行为 |
 |---|---|
-| `targetDay <= 0`（未选） | 返回 null |
+| `targetDay == -1`（未选） | 返回 null（0 与负毫秒是 1970-01-01 及更早的合法日期，不在此列） |
 | 不重复 | 返回目标日组合时刻；**已过也原样返回过去时刻**，不推进 |
 | 重复 | 从目标日起按周期推进到不早于 `now`；恰好等于 `now` 时不再推进 |
 | 时分秒任一未选 | 按 00:00:00 组合 |
@@ -116,6 +116,7 @@ data class Countdown(
 
 - 时长先**向上取整到完整秒**（用于秒级 tick 时与秒边界不对齐的场景，进位不闪跳）；目标与当前恰为同一瞬间时输出 0 秒
 - 满一天取 `DAYS`，不足一天取 `HOURS`，不足一小时取 `MINUTES`，不足一分取 `SECONDS`
+- 时长按真实时刻差计算：跨夏令时变化的一天实隔 23 或 25 小时，量级随真实时长（23 小时取小时、25 小时取天）；目标与当前分处不同时区同理
 
 ## 常见场景
 
@@ -209,17 +210,24 @@ Schedule(
 - **`countdown()` 只有单一量级**：满一天取天、不足一天取小时……没有周单位，也没有复合细分（如「3天4小时」）；复合展示由消费方用两个 `ZonedDateTime` 自行计算
 - **农历数据边界 9999**：农历月/年重复的锚点年超出 9999 抛 `IllegalArgumentException`，推算推进越过 9999 抛 `IllegalStateException`（不会死循环）——lunar-java 年表越界后会静默返回错误数据，本库在边界显式拦截
 - **`repeatInterval` 上界 100000**：更大的间隔在构造时即抛 `IllegalArgumentException`；上界保证任意单位组合出的日期不超出 `java.time` 年份范围，推算不裸抛 JDK 异常
+- **公历推算无 9999 结果上限**：农历路径越过 9999 显式拦截，公历路径则只受 `java.time` 年份范围约束——上界间隔月重复自 2026 锚点可组合出 10359 年的结果；结果需落回受限日期系统的消费方自行注意
 - **Android minSdk 26+**：更低版本需开启 core library desugaring（`java.time`）
 
 ## 测试
 
-56 个 JUnit 5 用例覆盖公历/农历推算（含 1970 年前负毫秒锚点与范围下界）、闰月、月末收缩、跨年（含无闰月年腊月边界）、DST 缺口与重叠、时区组合、入参与数据边界校验、结果不变量与倒计时状态细分。
+77 个 JUnit 5 用例覆盖公历/农历推算（含 1970 年前负毫秒锚点与范围上下界）、闰月（含多间隔计入步数与闰月年恢复）、月末收缩（含多间隔收缩回弹）、跨年（含无闰月年腊月边界）、DST 缺口与重叠（含重复出现与农历候选日、跳日时区）、时区组合（含 now 与 zone 分处不同时区）、入参与数据边界校验、结果不变量与倒计时状态细分（含跨 DST 真实时长）。
 
 ```
 ./gradlew build
 ```
 
 ## 版本历史
+
+### 1.2.1（2026-08-24）
+
+- 测试 56 → 77，补齐此前无测试钉住的承诺行为与组合缺口：`countdown` 同一瞬间输出 0 秒、配了间隔但单位未选视为不重复、重复日程锚点在未来原样返回、`targetDay` 只取日期部分（非零点毫秒）与范围上界日末毫秒、README 快速上手示例端到端
+- 组合缺口：夏令时重叠 × 重复、农历候选日 × 缺口与重叠、周重复跨秋令时回拨与 Apia 跳日整天缺口的直算对齐、倒计时跨夏令时与跨时区按真实时刻差细分、月/年重复多间隔收缩回弹、闰月计入步数与闰月年恢复取闰月、农历年重复越界守护；不变量矩阵扩至纽约时区与新日程形态
+- 文档修正：快速上手示例倒计时注释 39 → 38（实隔 38 天 22 小时，取天向下取整）；`nextTarget` 行为表「`targetDay <= 0` 返回 null」为 1.2.0 前残留，改为「`targetDay == -1`」；补记倒计时跨夏令时细分与公历推算无 9999 结果上限
 
 ### 1.2.0（2026-08-23）
 

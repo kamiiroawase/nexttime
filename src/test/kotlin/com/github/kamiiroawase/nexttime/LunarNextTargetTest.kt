@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.Timeout
 import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 import java.time.ZonedDateTime
 
 /** 农历 nextTarget：以 2025 农历年（闰六月）为核心场景 */
@@ -38,6 +40,25 @@ class LunarNextTargetTest {
     }
 
     @Test
+    fun `农历重复锚点在未来直接返回锚点`() {
+        // 锚点 2026-8-15（公历 2026-09-25）尚未到达：首个候选即锚点本身，不推进
+        val schedule =
+            schedule(
+                solarMillis(Lunar.fromYmd(2026, 8, 15).solar),
+                lunar = true,
+                interval = 1,
+                unit = 4,
+            )
+
+        val target = schedule.nextTarget(zdt(2026, 1, 1), shanghai)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2026, targetLunar.year)
+        assertEquals(8, targetLunar.month)
+        assertEquals(15, targetLunar.day)
+    }
+
+    @Test
     fun `闰月日年重复参与时当年退化普通月`() {
         val schedule =
             schedule(
@@ -54,6 +75,31 @@ class LunarNextTargetTest {
         assertEquals(2026, targetLunar.year)
         assertEquals(6, targetLunar.month)
         assertEquals(1, targetLunar.day)
+    }
+
+    @Test
+    fun `闰月日年重复参与时此后闰月年恢复取闰月`() {
+        // KDoc 承诺「仅当年退化，之后有闰月的年份仍取闰月」：2036 是 2025 后首个
+        // 闰六月年，now 已过 2036 普通六月十五，当年候选恢复取闰六月初一而非次年普通六月
+        val schedule =
+            schedule(
+                solarMillis(Lunar.fromYmd(2025, -6, 1).solar),
+                lunar = true,
+                leapCount = true,
+                interval = 1,
+                unit = 4,
+            )
+
+        val now = solarDate(Lunar.fromYmd(2036, 6, 15).solar).atStartOfDay(shanghai)
+
+        val target = schedule.nextTarget(now, shanghai)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2036, targetLunar.year)
+        assertEquals(-6, targetLunar.month)
+        assertEquals(1, targetLunar.day)
+        assertEquals(6, LunarYear.fromYear(2036).leapMonth)
+        assertTrue(target.isAfter(now))
     }
 
     @Test
@@ -180,6 +226,85 @@ class LunarNextTargetTest {
         assertEquals(2025, targetLunar.year)
         assertEquals(8, targetLunar.month)
         assertEquals(1, targetLunar.day)
+    }
+
+    @Test
+    fun `农历月重复多间隔闰月计入步数`() {
+        // 五月初一每2月、闰月参与：六月占第 1 步、闰六月占第 2 步，落在闰六月初一
+        // （同配置闰月不参与时跳到八月初一，见上）
+        val schedule =
+            schedule(
+                solarMillis(Lunar.fromYmd(2025, 5, 1).solar),
+                lunar = true,
+                leapCount = true,
+                interval = 2,
+                unit = 3,
+            )
+
+        val now = solarDate(Lunar.fromYmd(2025, 6, 10).solar).atStartOfDay(shanghai)
+
+        val target = schedule.nextTarget(now, shanghai)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2025, targetLunar.year)
+        assertEquals(-6, targetLunar.month)
+        assertEquals(1, targetLunar.day)
+        assertTrue(target.isAfter(now))
+    }
+
+    @Test
+    fun `农历月重复候选日落夏令时缺口顺延`() {
+        // 农历推算 × DST 时区组合：腊月二十每月重复，下一候选正月二十恰为公历
+        // 2026-03-08，纽约 02:30 落缺口顺延 03:30，仅影响当日
+        val newYork = ZoneId.of("America/New_York")
+        val schedule =
+            schedule(
+                solarMillis(Lunar.fromYmd(2025, 12, 20).solar),
+                2,
+                30,
+                0,
+                lunar = true,
+                interval = 1,
+                unit = 3,
+            )
+
+        val now = ZonedDateTime.of(2026, 2, 20, 12, 0, 0, 0, newYork)
+
+        val target = schedule.nextTarget(now, newYork)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2026, targetLunar.year)
+        assertEquals(1, targetLunar.month)
+        assertEquals(20, targetLunar.day)
+        assertEquals(LocalTime.of(3, 30), target.toLocalTime())
+        assertEquals("-04:00", target.offset.id)
+    }
+
+    @Test
+    fun `农历月重复候选日落夏令时重叠取较早一次`() {
+        // 九月廿三每月重复：2026-11-01 01:30 在纽约出现两次，取较早的 EDT
+        val newYork = ZoneId.of("America/New_York")
+        val schedule =
+            schedule(
+                solarMillis(Lunar.fromYmd(2025, 9, 23).solar),
+                1,
+                30,
+                0,
+                lunar = true,
+                interval = 1,
+                unit = 3,
+            )
+
+        val now = ZonedDateTime.of(2026, 10, 15, 12, 0, 0, 0, newYork)
+
+        val target = schedule.nextTarget(now, newYork)!!
+
+        val targetLunar = lunarOf(target)
+        assertEquals(2026, targetLunar.year)
+        assertEquals(9, targetLunar.month)
+        assertEquals(23, targetLunar.day)
+        assertEquals(LocalTime.of(1, 30), target.toLocalTime())
+        assertEquals("-04:00", target.offset.id)
     }
 
     @Test
@@ -439,6 +564,22 @@ class LunarNextTargetTest {
                 lunar = true,
                 interval = Schedule.MAX_REPEAT_INTERVAL,
                 unit = 3,
+            )
+
+        assertThrows(IllegalStateException::class.java) { schedule.nextTarget(zdt(2026, 2, 1), shanghai) }
+    }
+
+    @Test
+    @Timeout(value = 10, threadMode = Timeout.ThreadMode.SEPARATE_THREAD)
+    fun `农历年重复上界间隔越过9999年立即抛IllegalStateException`() {
+        // 年重复沿 year += repeatInterval 推进（与逐月步进不同的路径），越过可靠
+        // 年表同样必须立即失败，不得向 lunar-java 索取越界数据
+        val schedule =
+            schedule(
+                utcMillis(LocalDate.of(2026, 1, 1)),
+                lunar = true,
+                interval = Schedule.MAX_REPEAT_INTERVAL,
+                unit = 4,
             )
 
         assertThrows(IllegalStateException::class.java) { schedule.nextTarget(zdt(2026, 2, 1), shanghai) }

@@ -25,6 +25,17 @@ class NextTargetTest {
     }
 
     @Test
+    fun `配了间隔但单位未选视为不重复`() {
+        // interval>0 + unit=NONE（或 interval=0 + unit=DAY）都按不重复处理，已过也不推进
+        val noneUnit = schedule(utcMillis(LocalDate.of(2026, 1, 1)), 8, 0, 0, interval = 5, unit = 0)
+        val zeroInterval = schedule(utcMillis(LocalDate.of(2026, 1, 1)), 8, 0, 0, interval = 0, unit = 1)
+
+        val now = zdt(2026, 8, 23)
+        assertEquals(LocalDate.of(2026, 1, 1), noneUnit.nextTarget(now, shanghai)!!.toLocalDate())
+        assertEquals(LocalDate.of(2026, 1, 1), zeroInterval.nextTarget(now, shanghai)!!.toLocalDate())
+    }
+
+    @Test
     fun `未选时间按当天零点`() {
         val schedule = schedule(utcMillis(LocalDate.of(2026, 8, 24)), hour = -1, minute = -1, second = -1)
 
@@ -51,6 +62,21 @@ class NextTargetTest {
 
         assertEquals("-04:00", target.offset.id)
         assertEquals(LocalDate.of(2026, 8, 24), target.toLocalDate())
+    }
+
+    @Test
+    fun `now与zone分处不同时区按zone组合与now比较`() {
+        // README 已知坑的既定行为：日期按 zone（上海）组合，时刻与 now（纽约）的 instant 比较
+        val newYork = ZoneId.of("America/New_York")
+        val schedule = schedule(utcMillis(LocalDate.of(2026, 8, 20)), 12, 0, 0, interval = 1, unit = 1)
+
+        val now = ZonedDateTime.of(2026, 8, 23, 12, 0, 0, 0, newYork)
+
+        val target = schedule.nextTarget(now, shanghai)!!
+
+        assertEquals(LocalDate.of(2026, 8, 24), target.toLocalDate())
+        assertEquals("+08:00", target.offset.id)
+        assertFalse(target.isBefore(now))
     }
 
     @Test
@@ -121,6 +147,38 @@ class NextTargetTest {
     }
 
     @Test
+    fun `公历周重复跨秋令时回拨保持对齐`() {
+        // 直算路径估算余量的另一半方向：秋令时回拨使相邻出现实隔 25 墙钟小时，
+        // 1970 锚点推进 57 年跨约百次回拨，仍与锚点日按周对齐
+        val newYork = ZoneId.of("America/New_York")
+        val anchor = LocalDate.of(1970, 1, 5)
+        val schedule = schedule(utcMillis(anchor), 1, 30, 0, interval = 1, unit = 2)
+        val now = ZonedDateTime.of(2026, 11, 15, 12, 0, 0, 0, newYork)
+
+        val target = schedule.nextTarget(now, newYork)!!
+
+        assertEquals(0L, ChronoUnit.DAYS.between(anchor, target.toLocalDate()) % 7)
+        assertFalse(target.isBefore(now))
+        assertTrue(target.isBefore(now.plusWeeks(1)))
+    }
+
+    @Test
+    fun `公历天重复跨跳日时区整天缺口顺延`() {
+        // Apia 2011-12-30 整天不存在（12/29 末自 -10 跳 +14）：当日出现顺延到
+        // 12/31 零点，24 小时跳变仍在直算步数的估算余量内
+        val apia = ZoneId.of("Pacific/Apia")
+        val schedule = schedule(utcMillis(LocalDate.of(2011, 12, 1)), interval = 1, unit = 1)
+
+        val now = ZonedDateTime.of(2011, 12, 29, 12, 0, 0, 0, apia)
+
+        val target = schedule.nextTarget(now, apia)!!
+
+        assertEquals(LocalDate.of(2011, 12, 31), target.toLocalDate())
+        assertEquals(LocalTime.MIDNIGHT, target.toLocalTime())
+        assertEquals("+14:00", target.offset.id)
+    }
+
+    @Test
     fun `公历月重复大月末收缩到月末`() {
         // 1月31日每月重复，2月只有28天，收缩到2月末
         val schedule = schedule(utcMillis(LocalDate.of(2026, 1, 31)), interval = 1, unit = 3)
@@ -141,6 +199,16 @@ class NextTargetTest {
     }
 
     @Test
+    fun `公历月重复多间隔收缩以锚点日为基准`() {
+        // 12/31 每 2 月：+2 月落 2 月收缩到 28、+4 月落 4 月收缩到 30，
+        // 均自锚点日 31 直算而非逐步累加（逐步累加会丢失锚点日）
+        val schedule = schedule(utcMillis(LocalDate.of(2025, 12, 31)), interval = 2, unit = 3)
+
+        assertEquals(LocalDate.of(2026, 2, 28), schedule.nextTarget(zdt(2026, 1, 15), shanghai)!!.toLocalDate())
+        assertEquals(LocalDate.of(2026, 4, 30), schedule.nextTarget(zdt(2026, 3, 1), shanghai)!!.toLocalDate())
+    }
+
+    @Test
     fun `公历闰日月重复平年落月末`() {
         // 2024-02-29 每年重复，平年收缩到2月末
         val schedule = schedule(utcMillis(LocalDate.of(2024, 2, 29)), interval = 1, unit = 4)
@@ -158,6 +226,15 @@ class NextTargetTest {
         val target = schedule.nextTarget(zdt(2027, 3, 1), shanghai)!!
 
         assertEquals(LocalDate.of(2028, 2, 29), target.toLocalDate())
+    }
+
+    @Test
+    fun `公历闰日年重复多间隔回弹`() {
+        // 2024-02-29 每 2 年：格点 2026 收缩到 2/28，格点 2028 闰年回弹到 2/29
+        val schedule = schedule(utcMillis(LocalDate.of(2024, 2, 29)), interval = 2, unit = 4)
+
+        assertEquals(LocalDate.of(2026, 2, 28), schedule.nextTarget(zdt(2026, 1, 15), shanghai)!!.toLocalDate())
+        assertEquals(LocalDate.of(2028, 2, 29), schedule.nextTarget(zdt(2026, 6, 1), shanghai)!!.toLocalDate())
     }
 
     @Test
@@ -202,12 +279,37 @@ class NextTargetTest {
     }
 
     @Test
+    fun `夏令时重叠日重复出现仍取较早一次`() {
+        // 每月 1 日 01:30：11/1 回拨日出现两次，重复推算到该日时同样取较早的 EDT
+        // （缺口方向的「顺延不泄漏」已测，重叠方向对称补齐）
+        val newYork = ZoneId.of("America/New_York")
+        val schedule = schedule(utcMillis(LocalDate.of(2026, 6, 1)), 1, 30, 0, interval = 1, unit = 3)
+
+        val target = schedule.nextTarget(ZonedDateTime.of(2026, 10, 15, 12, 0, 0, 0, newYork), newYork)!!
+
+        assertEquals(LocalDate.of(2026, 11, 1), target.toLocalDate())
+        assertEquals(LocalTime.of(1, 30), target.toLocalTime())
+        assertEquals("-04:00", target.offset.id)
+    }
+
+    @Test
     fun `重复时刻恰好等于now不再推进`() {
         val schedule = schedule(utcMillis(LocalDate.of(2026, 8, 23)), 12, 0, 0, interval = 1, unit = 1)
 
         val now = zdt(2026, 8, 23, 12, 0, 0)
 
         assertEquals(now, schedule.nextTarget(now, shanghai))
+    }
+
+    @Test
+    fun `重复日程锚点在未来直接返回锚点`() {
+        // 首次出现尚未到达时不推进，原样返回锚点组合时刻
+        val schedule = schedule(utcMillis(LocalDate.of(2026, 12, 24)), 10, 0, 0, interval = 7, unit = 2)
+
+        val target = schedule.nextTarget(zdt(2026, 8, 23), shanghai)!!
+
+        assertEquals(LocalDate.of(2026, 12, 24), target.toLocalDate())
+        assertEquals(LocalTime.of(10, 0, 0), target.toLocalTime())
     }
 
     @Test
@@ -250,6 +352,33 @@ class NextTargetTest {
     }
 
     @Test
+    fun `targetDay只取日期部分忽略毫秒中的时分秒`() {
+        // 正午与日末 23:59:59.999 的 UTC 毫秒都只取日期，与零点毫秒同一目标日；
+        // MaterialDatePicker 等来源的返回值未必是零点毫秒
+        val noon = utcMillis(LocalDate.of(2026, 10, 1)) + 12L * 3600 * 1000
+        val dayEnd = utcMillis(LocalDate.of(2026, 10, 1)) + 86_399_999L
+
+        assertEquals(
+            LocalDate.of(2026, 10, 1),
+            schedule(noon, 10, 0, 0).nextTarget(zdt(2026, 8, 23), shanghai)!!.toLocalDate(),
+        )
+        assertEquals(
+            LocalDate.of(2026, 10, 1),
+            schedule(dayEnd, 10, 0, 0).nextTarget(zdt(2026, 8, 23), shanghai)!!.toLocalDate(),
+        )
+    }
+
+    @Test
+    fun `targetDay上界含9999年日末毫秒`() {
+        // 上界为 10000-01-01 零点减一毫秒：9999-12-31 当天日末毫秒在界内（下界已测）
+        val dayEnd = utcMillis(LocalDate.of(10000, 1, 1)) - 1
+
+        val target = schedule(dayEnd).nextTarget(zdt(2026, 8, 23), shanghai)!!
+
+        assertEquals(LocalDate.of(9999, 12, 31), target.toLocalDate())
+    }
+
+    @Test
     fun `负毫秒支持1970年前公历生日年重复`() {
         val schedule = schedule(utcMillis(LocalDate.of(1965, 6, 15)), interval = 1, unit = 4)
 
@@ -282,5 +411,29 @@ class NextTargetTest {
             LocalDate.of(2026, 1, 1).plusDays(Schedule.MAX_REPEAT_INTERVAL * 7L),
             weekly.nextTarget(zdt(2026, 8, 23), shanghai)!!.toLocalDate(),
         )
+    }
+
+    @Test
+    fun `公历月重复上界间隔结果可越过9999年`() {
+        // 公历路径无 9999 守护（守护只在农历侧），上界保证的是不超出 java.time
+        // 年份范围：100000 个月自 2026 组合出 10359-05-01，如常返回
+        val schedule = schedule(utcMillis(LocalDate.of(2026, 1, 1)), interval = Schedule.MAX_REPEAT_INTERVAL, unit = 3)
+
+        val target = schedule.nextTarget(zdt(2026, 8, 23), shanghai)!!
+
+        assertEquals(LocalDate.of(10359, 5, 1), target.toLocalDate())
+    }
+
+    @Test
+    fun `README快速上手示例`() {
+        // 钉住文档端到端示例：2026-10-01 10:00（上海），自 8/23 12:00 起
+        // 实隔 38 天 22 小时，量级取天、数值向下取整为 38
+        val schedule = schedule(utcMillis(LocalDate.of(2026, 10, 1)), 10, 0, 0)
+
+        val now = zdt(2026, 8, 23, 12, 0, 0)
+        val target = schedule.nextTarget(now, shanghai)!!
+
+        assertEquals(ZonedDateTime.of(2026, 10, 1, 10, 0, 0, 0, shanghai), target)
+        assertEquals(Countdown(false, 38, CountdownUnit.DAYS), countdown(target, now))
     }
 }
