@@ -220,4 +220,81 @@ class CountdownTest {
             ),
         )
     }
+
+    @Test
+    fun `进一法恰满一天为一天`() {
+        // 剩余整 86400 秒：进一与截断一致，1 天
+        val now = zdt(2026, 8, 23, 0, 0, 0)
+
+        assertEquals(
+            Countdown(false, 1, CountdownUnit.DAYS),
+            countdown(zdt(2026, 8, 24, 0, 0, 0), now, Rounding.CEIL_FUTURE),
+        )
+    }
+
+    @Test
+    fun `进一法差一秒满天仍为一天`() {
+        // 剩余 86399 秒 + 1 纳秒：整体进秒到 86400，进一为 1 天
+        val now = zdt(2026, 8, 23, 0, 0, 0, nano = 999_999_999)
+
+        assertEquals(
+            Countdown(false, 1, CountdownUnit.DAYS),
+            countdown(zdt(2026, 8, 24, 0, 0, 0), now, Rounding.CEIL_FUTURE),
+        )
+    }
+
+    @Test
+    fun `进一法差一秒满小时进位为小时`() {
+        // 剩余 3599 秒 + 1 纳秒：进秒到 3600，进一为 1 小时
+        val now = zdt(2026, 8, 23, 12, 0, 0, nano = 999_999_999)
+
+        assertEquals(
+            Countdown(false, 1, CountdownUnit.HOURS),
+            countdown(zdt(2026, 8, 23, 13, 0, 0), now, Rounding.CEIL_FUTURE),
+        )
+    }
+
+    @Test
+    fun `进一法不足一小时差一秒满时仍为小时`() {
+        // 剩余 3599 秒整：分进一到 60 分，撞单位边界进位为 1 小时
+        val now = zdt(2026, 8, 23, 12, 0, 1)
+
+        assertEquals(
+            Countdown(false, 1, CountdownUnit.HOURS),
+            countdown(zdt(2026, 8, 23, 13, 0, 0), now, Rounding.CEIL_FUTURE),
+        )
+    }
+
+    @Test
+    fun `进一法多日不足整天向上取整天`() {
+        // 剩余 3 天 + 1 秒：进一为 4 天
+        val now = zdt(2026, 8, 23, 12, 0, 0)
+
+        assertEquals(
+            Countdown(false, 4, CountdownUnit.DAYS),
+            countdown(zdt(2026, 8, 26, 12, 0, 1), now, Rounding.CEIL_FUTURE),
+        )
+    }
+
+    @Test
+    fun `进一法已过方向恒截断`() {
+        // 已过 86399 秒整：进一法若作用于已过会得 1 天，实际恒截断为 23 小时
+        val now = zdt(2026, 8, 24, 0, 0, 0)
+
+        assertEquals(
+            Countdown(true, 23, CountdownUnit.HOURS),
+            countdown(zdt(2026, 8, 23, 0, 0, 1), now, Rounding.CEIL_FUTURE),
+        )
+    }
+
+    @Test
+    fun `默认参数为截断模式`() {
+        // 不传 rounding 与显式 TRUNCATE 等价
+        val now = zdt(2026, 8, 23, 0, 0, 0)
+
+        assertEquals(
+            countdown(zdt(2026, 8, 24, 0, 0, 0), now),
+            countdown(zdt(2026, 8, 24, 0, 0, 0), now, Rounding.TRUNCATE),
+        )
+    }
 }
