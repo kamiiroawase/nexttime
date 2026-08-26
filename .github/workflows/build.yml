@@ -33,29 +33,37 @@ jobs:
             gradle/wrapper/gradle-wrapper.properties
             **/*.gradle.kts
 
-      # spotlessCheck 挂在 check 上，build 已含格式检查
+      # spotlessCheck 挂在 check 上，build 已含格式检查；
+      # iOS 目标在 Linux 交叉编译，jvm/android 单元测试与 wasm(Node) 测试在本机执行
       - name: Build, test and check format
         run: chmod +x gradlew && ./gradlew build
 
       # JitPack 发版构建不跑测试（-xtest），发布链路只能在 CI 侧验证：
-      # 版本由 git tag 推导（依赖上方完整克隆），发布到本地 Maven 后动态发现版本目录，
-      # 断言版本目录恰一个且非 0.0.0-SNAPSHOT（tag 推导失效时立即红，不被静默放过）、
-      # 四类产物齐全、且 pom 中含 lunar-java 与 kotlin-stdlib 传递依赖
+      # 版本由 git tag 推导（依赖上方完整克隆），发布到本地 Maven 后断言 KMP 六模块
+      # （根 + android/jvm/iosArm64/iosSimulatorArm64/wasmJs）产物齐全、版本非 SNAPSHOT、
+      # pom 中含 tyme4kt 与 kotlinx-datetime 传递依赖
       - name: Verify Maven publishing
         run: |
           ./gradlew publishToMavenLocal
-          REPO="$HOME/.m2/repository/com/github/kamiiroawase/nexttime"
-          test "$(find "$REPO" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1
-          VERSION=$(find "$REPO" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | head -n 1)
+          GROUP_DIR="$HOME/.m2/repository/com/github/kamiiroawase"
+          ROOT="$GROUP_DIR/nexttime"
+          test "$(find "$ROOT" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1
+          VERSION=$(find "$ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | head -n 1)
           test -n "$VERSION"
           test "$VERSION" != "0.0.0-SNAPSHOT"
-          ARTIFACTS="$REPO/$VERSION"
-          test -f "$ARTIFACTS/nexttime-$VERSION.jar"
-          test -f "$ARTIFACTS/nexttime-$VERSION-sources.jar"
-          test -f "$ARTIFACTS/nexttime-$VERSION.pom"
-          test -f "$ARTIFACTS/nexttime-$VERSION.module"
-          grep -q cn.6tail "$ARTIFACTS/nexttime-$VERSION.pom"
-          grep -q kotlin-stdlib "$ARTIFACTS/nexttime-$VERSION.pom"
+          A="$ROOT/$VERSION"
+          for art in \
+            "$A/nexttime-$VERSION.module" \
+            "$A/nexttime-$VERSION.jar" \
+            "$GROUP_DIR/nexttime-android/$VERSION/nexttime-android-$VERSION.aar" \
+            "$GROUP_DIR/nexttime-jvm/$VERSION/nexttime-jvm-$VERSION.jar" \
+            "$GROUP_DIR/nexttime-iosarm64/$VERSION/nexttime-iosarm64-$VERSION.klib" \
+            "$GROUP_DIR/nexttime-iossimulatorarm64/$VERSION/nexttime-iossimulatorarm64-$VERSION.klib" \
+            "$GROUP_DIR/nexttime-wasm-js/$VERSION/nexttime-wasm-js-$VERSION.klib"; do
+            test -f "$art" || { echo "missing artifact: $art"; exit 1; }
+          done
+          grep -q cn.6tail "$A/nexttime-$VERSION.pom"
+          grep -q kotlinx-datetime "$A/nexttime-$VERSION.pom"
           echo "Published artifacts verified: $VERSION"
 
       - name: Upload test reports
@@ -63,6 +71,35 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
+          path: |
+            build/reports/tests/**
+            build/test-results/**
+          if-no-files-found: ignore
+
+  # iOS 模拟器测试需要 macOS；ubuntu job 已覆盖编译交叉验证
+  ios-tests:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+          cache-dependency-path: |
+            gradle/libs.versions.toml
+            gradle/wrapper/gradle-wrapper.properties
+            **/*.gradle.kts
+
+      - name: Run iOS simulator tests
+        run: chmod +x gradlew && ./gradlew iosSimulatorArm64Test
+
+      - name: Upload iOS test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-reports
           path: |
             build/reports/tests/**
             build/test-results/**

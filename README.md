@@ -5,7 +5,7 @@
 
 倒计时目标日推算库：给定日程的目标日、时刻与重复规则，推算下一个目标时刻并给出倒计时状态。支持公历与农历（含闰月语义）、天/周/月/年重复、任意时区。
 
-纯 Kotlin/JVM 库，无 Android 依赖，基于 [lunar-java](https://github.com/6tail/lunar-java) 提供农历数据。库只做计算、不输出任何语言文案，渲染交给消费方按语言实现（见[本地化渲染](#本地化渲染)）。
+Kotlin Multiplatform 库（commonMain 单一代码），目标平台：**Android（minSdk 24）、JVM（11+）、iOS（arm64 真机与模拟器）、wasmJs**。农历历法基于同作者的 [tyme4kt](https://github.com/6tail/tyme4kt)（[lunar-java](https://github.com/6tail/lunar-java) 的 KMP 升级版），日期时间基于 [kotlinx-datetime](https://github.com/Kotlin/kotlinx-datetime) 与 `kotlin.time`。库只做计算、不输出任何语言文案，渲染交给消费方按语言实现（见[本地化渲染](#本地化渲染)）。
 
 ## 特性
 
@@ -18,20 +18,24 @@
 
 ## 环境要求
 
-- JVM 8+；Android 项目 minSdk 26+（更低版本需开启 core library desugaring，因为使用 `java.time`）
-- `kotlin-stdlib` 与 `lunar-java` 以传递依赖自动引入，lunar-java 的 API 亦可直接使用
+- Kotlin Multiplatform 项目；Android `minSdk 24+`（2.0.0 起不再使用 `java.time`，无需 26+/desugaring）；JVM 11+（对齐 tyme4kt 字节码）；iOS 为 arm64 真机与模拟器（无 x64 目标，对齐 tyme4kt 发布面）
+- `tyme4kt` 与 `kotlinx-datetime` 以传递依赖自动引入，tyme4kt 的 API（`com.tyme.*`）亦可直接使用
+- wasmJs 平台的 IANA 时区库（`@js-joda/timezone` npm 包）已由本库内嵌并随 klib 传递，消费方零配置
 
 ## 引入
 
 ```kotlin
 repositories {
     maven("https://jitpack.io")
+    mavenCentral()   // 传递依赖 tyme4kt / kotlinx-datetime
 }
 
 dependencies {
-    implementation("com.github.kamiiroawase:nexttime:1.2.2")
+    implementation("com.github.kamiiroawase:nexttime:2.0.0")
 }
 ```
+
+KMP 项目在 `commonMain` 声明一次即可，各目标平台自动解析对应变体（`-android` / `-jvm` / `-iosarm64` / `-iossimulatorarm64` / `-wasm-js`）。
 
 ## 快速上手
 
@@ -39,22 +43,27 @@ dependencies {
 import com.github.kamiiroawase.nexttime.Schedule
 import com.github.kamiiroawase.nexttime.countdown
 import com.github.kamiiroawase.nexttime.nextTarget
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZoneOffset
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.toInstant
+import kotlinx.datetime.toLocalDateTime
 
 // 单次日程：2026-10-01 10:00:00（上海时区）
 val schedule = Schedule(
-    targetDay = LocalDate.of(2026, 10, 1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
-    targetHour = 10
+    targetDay = LocalDate(2026, 10, 1).atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds(),
+    targetHour = 10,
 )
 
-val zone = ZoneId.of("Asia/Shanghai")
-val now = LocalDate.of(2026, 8, 23).atTime(12, 0).atZone(zone)   // 以 2026-08-23 12:00 为例
+val zone = TimeZone.of("Asia/Shanghai")
+val now = LocalDateTime(2026, 8, 23, 12, 0).toInstant(zone)   // 以 2026-08-23 12:00 为例
 
-val next = schedule.nextTarget(now, zone)!!        // 2026-10-01T10:00+08:00
+val next = schedule.nextTarget(now, zone)!!        // 2026-10-01T10:00+08:00（上海本地时刻）
 val state = countdown(next, now)                   // Countdown(past = false, value = 38, unit = DAYS)（实隔 38 天 22 小时，取天向下取整）
 ```
+
+展示日期时间：`next.toLocalDateTime(zone)` 得到 `LocalDateTime` 后按平台格式化。
 
 ## API
 
@@ -74,20 +83,22 @@ val state = countdown(next, now)                   // Countdown(past = false, va
 关于 `targetDay`：
 
 - 只取**日期**部分，固定按 UTC 解析；时分秒由 `targetHour/Minute/Second` 单独存储
-- Android 上可直接存 `MaterialDatePicker` 的返回值（本身就是 UTC 毫秒，1970 前日期的负值同样直接可用）；桌面/服务端用 `localDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli()`
+- Android 上可直接存 `MaterialDatePicker` 的返回值（本身就是 UTC 毫秒，1970 前日期的负值同样直接可用）；其他平台用 `localDate.atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds()`
 - 农历日程同样存锚点日期的公历 UTC 毫秒，库自动换算为农历月日参与推算
 - 支持 **0001-01-01 至 9999-12-31**（UTC 日期）：1970-01-01 之前的日期以负毫秒表示（纪元日当天毫秒恰为 0，同样合法），1970 年前出生的生日可直接录入
 
-所有字段在构造时校验：`targetDay` 仅接受 -1（未选）或解析到 0001-01-01..9999-12-31 的毫秒值（0 与负毫秒对应 1970-01-01 及更早日期，合法），时分秒仅接受 -1（未选）或各自合法区间（-1 以外没有「未选」语义），`repeatInterval` 在 0..100000（上界保证任意单位组合出的日期不超出 `java.time` 年份范围，不裸抛 JDK 异常），`repeatUnit` 必须是 `RepeatUnit` 常量；非法取值抛 `IllegalArgumentException`。
+所有字段在构造时校验：`targetDay` 仅接受 -1（未选）或解析到 0001-01-01..9999-12-31 的毫秒值（0 与负毫秒对应 1970-01-01 及更早日期，合法），时分秒仅接受 -1（未选）或各自合法区间（-1 以外没有「未选」语义），`repeatInterval` 在 0..100000，`repeatUnit` 必须是 `RepeatUnit` 常量；非法取值抛 `IllegalArgumentException`。
 
 ### nextTarget()
 
 ```kotlin
 fun Schedule.nextTarget(
-    now: ZonedDateTime = ZonedDateTime.now(),
-    zone: ZoneId = ZoneId.systemDefault()
-): ZonedDateTime?
+    now: Instant = Clock.System.now(),
+    zone: TimeZone = TimeZone.currentSystemDefault(),
+): Instant?
 ```
+
+`Instant`/`Clock` 来自 `kotlin.time`（kotlinx-datetime 0.7+ 已并入）。自 1.x 迁移：原 `ZonedDateTime` 入参改传 `Instant`（`zdt.toInstant()`），结果用 `instant.toLocalDateTime(zone)` 取本地日期时间。
 
 | 场景 | 行为 |
 |---|---|
@@ -98,12 +109,12 @@ fun Schedule.nextTarget(
 | 农历 + 天/周重复 | 与公历相同（农历日期不参与天/周步进） |
 | 公历月/年重复遇短月/平年 | 收缩到当月最接近锚点日的一天，后续回弹（1/31 → 2/28 → 3/31；2/29 → 平年 2/28 → 闰年 2/29） |
 | 锚点日期超出 0001-01-01..9999-12-31 | 构造 `Schedule` 即抛 `IllegalArgumentException`（全部日程生效，不区分公历/农历） |
-| 农历推算推进越过可靠年表（农历 0..9999 年） | 抛 `IllegalStateException`，不会死循环 |
+| 推算越过支持日期范围（公历与农历统一 0001..9999） | 抛 `IllegalStateException`，不会死循环 |
 
 ### countdown()
 
 ```kotlin
-fun countdown(target: ZonedDateTime, now: ZonedDateTime): Countdown
+fun countdown(target: Instant, now: Instant): Countdown
 
 data class Countdown(
     val past: Boolean,      // true = 目标已过
@@ -175,8 +186,8 @@ Schedule(
   // Countdown(false, 20, HOURS) → "还有20小时"
   ```
 
-- **公历日期**：`nextTarget` 返回的 `ZonedDateTime`，用 `DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)` 等按 locale 格式化
-- **农历日期**：用传递依赖 lunar-java 取结构，`Solar.fromYmd(y, m, d).lunar` 的 `monthInChinese / dayInChinese` 为中文名，其他语言可按 `month`（负数为闰月）/ `day` 数字自行命名
+- **公历日期**：`nextTarget` 返回的 `Instant`，用 `instant.toLocalDateTime(zone)` 转为 `LocalDateTime` 后按平台格式化（JVM/Android 可用 `DateTimeFormatter.ofLocalizedDateTime`）
+- **农历日期**：用传递依赖 tyme4kt 取结构，`SolarDay.fromYmd(y, m, d).lunarDay`（`com.tyme.*`）；中文名可从 `LunarDay`/`LunarMonth` 的 `getName()` 取得，其他语言按 `month`（负数为闰月）/ `day` 数字自行命名
 
 ## 农历重复语义
 
@@ -204,24 +215,34 @@ Schedule(
 ## 已知限制与常见坑
 
 - **`targetDay` 支持范围为 0001-01-01 至 9999-12-31（UTC 日期）**：-1 是「未选」哨兵；1970 年前日期以负毫秒表示（`MaterialDatePicker` 的负返回值可直接存入），纪元日 1970-01-01 的毫秒值 0 同样合法；范围外的年份构造 `Schedule` 即拒
+- **2.0.0 API 破坏性变更**：`nextTarget`/`countdown` 全面改用 `kotlin.time.Instant` 与 `kotlinx-datetime.TimeZone`（1.x 为 `java.time.ZonedDateTime/ZoneId`）；1.x 调用方以 `instant.toLocalDateTime(zone)` 迁移
+- **推算结果统一以 9999-12-31 为界**：公历与农历越过即抛 `IllegalStateException`。1.2.x 公历月/年重复曾可组合出 10359 年等界外结果，受 kotlinx-datetime 的 `LocalDate` 年份范围（0000..9999）限制不再支持；`repeatInterval` 上界 100000 不变，周单位上界间隔（约 1916 年）仍在范围内正常组合
 - **时分秒「要么全选、要么全不选」**：任一字段为 -1 时整体按 00:00:00 组合，其余已选字段被静默丢弃——`targetHour = 8` 而 `targetMinute = -1` 得到的是零点，不是 08:00
 - **`nextTarget(now, zone)` 成对传**：`zone` 默认系统时区；传入非默认时区的 `now` 时务必同传 `zone`，否则日期按系统时区组合、时刻与 `now` 比较，语义会静默分裂
 - **不重复日程不推进**：目标已过仍原样返回过去时刻，`countdown()` 会如实报告「已过」；需要自动推进请配置重复规则
-- **`countdown()` 只有单一量级**：满一天取天、不足一天取小时……没有周单位，也没有复合细分（如「3天4小时」）；复合展示由消费方用两个 `ZonedDateTime` 自行计算
-- **农历数据边界 9999**：农历月/年重复的锚点年超出 9999 抛 `IllegalArgumentException`，推算推进越过 9999 抛 `IllegalStateException`（不会死循环）——lunar-java 年表越界后会静默返回错误数据，本库在边界显式拦截
-- **`repeatInterval` 上界 100000**：更大的间隔在构造时即抛 `IllegalArgumentException`；上界保证任意单位组合出的日期不超出 `java.time` 年份范围，推算不裸抛 JDK 异常
-- **公历推算无 9999 结果上限**：农历路径越过 9999 显式拦截，公历路径则只受 `java.time` 年份范围约束——上界间隔月重复自 2026 锚点可组合出 10359 年的结果；结果需落回受限日期系统的消费方自行注意
-- **Android minSdk 26+**：更低版本需开启 core library desugaring（`java.time`）
+- **`countdown()` 只有单一量级**：满一天取天、不足一天取小时……没有周单位，也没有复合细分（如「3天4小时」）；复合展示由消费方用两个 `Instant` 自行计算
+- **iOS 无 x64 模拟器目标**：对齐 tyme4kt 的发布面，仅 arm64 真机与模拟器；如需 x64 可在同生态提 issue
+- **Android minSdk 24+ / JVM 11+**：分别为 tyme4kt 的 android 门槛与 jvm 字节码版本；common 代码不使用 `java.time`，无需 desugaring
 
 ## 测试
 
-101 个 JUnit 5 用例覆盖公历/农历推算（含 1970 年前负毫秒锚点与范围上下界、边界锚点越界守护）、闰月（含多间隔计入步数、闰月年恢复与格点年退化）、月末收缩（含多间隔收缩回弹、农历年重复与闰月收缩）、跨年（含无闰月年腊月边界与月重复多间隔跨年）、DST 缺口与重叠（含重复出现与农历候选日、跳日时区、南半球与午夜跳变时区）、时区组合（含 now 与 zone 分处不同时区、半时区）、入参与数据边界校验、结果不变量与倒计时状态细分（含跨 DST 真实时长、精确量级边界与亚秒进位翻量级、跨时区同瞬间）。
+101 个 JUnit 兼容用例（`kotlin.test`，commonTest）覆盖公历/农历推算（含 1970 年前负毫秒锚点与范围上下界、边界锚点越界守护）、闰月（含多间隔计入步数、闰月年恢复与格点年退化）、月末收缩（含多间隔收缩回弹、农历年重复与闰月收缩）、跨年（含无闰月年腊月边界与月重复多间隔跨年）、DST 缺口与重叠（含重复出现与农历候选日、跳日时区、南半球与午夜跳变时区、Apia/Kwajalein 整天缺口）、时区组合（含 now 与 zone 分处不同时区、半时区）、入参与数据边界校验、结果不变量与倒计时状态细分（含跨 DST 真实时长、精确量级边界与亚秒进位翻量级、跨时区同瞬间）。用例在 JVM、Android 单元测试与 wasm(Node) 三平台运行，iOS 模拟器由 macOS CI 执行。
 
 ```
 ./gradlew build
 ```
 
 ## 版本历史
+
+### 2.0.0（2026-08-26）
+
+- 迁移到 **Kotlin Multiplatform**：Android（minSdk 24）/ JVM（11+）/ iOS（arm64 真机与模拟器）/ wasmJs 五目标，commonMain 单一代码；Android 不再要求 minSdk 26 与 desugaring
+- 依赖切换：农历历法由 lunar-java 换为同作者 KMP 库 **tyme4kt**（`cn.6tail:tyme4kt`，MIT，`com.tyme.*` API；全部农历断言实测与 lunar-java 一致，含农历 0 年下界与 2025 闰六月场景）；`java.time` 换为 **kotlinx-datetime 0.8.0** + `kotlin.time.Instant/Duration/Clock`
+- **API 破坏性变更**：`nextTarget(now: Instant = Clock.System.now(), zone: TimeZone = TimeZone.currentSystemDefault()): Instant?`、`countdown(target: Instant, now: Instant)`；1.x 的 `ZonedDateTime` 调用方以 `instant.toLocalDateTime(zone)` 迁移
+- 推算结果统一以 0001-01-01..9999-12-31 为界：公历月/年重复越过 9999 现与农历一致抛 `IllegalStateException`（1.2.x 曾可组合出 10359 年的结果，受 kotlinx-datetime `LocalDate` 年份范围限制不再支持）；周单位上界间隔仍在范围内正常组合
+- wasmJs 平台内嵌 `@js-joda/timezone` npm 依赖：kotlinx-datetime 在 wasm 的 IANA 时区库随 klib 传递给消费方，零配置
+- 测试迁移到 commonTest（`kotlin.test`）：101 用例 × JVM / Android / wasm(Node) 三平台运行，iOS 模拟器由 macOS CI 执行
+- 构建与 CI：AGP 9（Gradle 9.7）、spotless 8；ubuntu 全目标构建与 KMP 六模块发布产物验证（根 + android/jvm/iosArm64/iosSimulatorArm64/wasmJs），新增 macos iOS 模拟器测试 job；JitPack 发布流程不变
 
 ### 1.2.2（2026-08-24）
 
@@ -267,4 +288,4 @@ Schedule(
 
 [The Unlicense](LICENSE)
 
-本库依赖 [lunar-java](https://github.com/6tail/lunar-java)（MIT License, Copyright (c) 2018 6tail）。lunar-java 以独立构件由消费方自行解析，其许可不随本库重新授权；将其打入分发包（如 APK）时请按 MIT 要求附上其版权与许可声明。
+本库依赖 [tyme4kt](https://github.com/6tail/tyme4kt)（MIT License, Copyright (c) 6tail）与 [kotlinx-datetime](https://github.com/Kotlin/kotlinx-datetime)（Apache 2.0, JetBrains）。两者以独立构件由消费方自行解析，其许可不随本库重新授权；将其打入分发包（如 APK/IPA）时请按各自许可要求附上版权与许可声明。

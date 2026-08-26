@@ -1,26 +1,24 @@
 package com.github.kamiiroawase.nexttime
 
-import java.time.LocalDate
-import java.time.ZoneOffset
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
 
 /**
  * [Schedule.targetDay] 的支持范围：UTC 解析出的日期须落在 0001-01-01 至
- * 9999-12-31，与农历可靠年表范围对齐；上界取 10000-01-01 零点减一毫秒，
- * 使 9999-12-31 当天任意时刻的毫秒值都在界内。
+ * 9999-12-31，与 kotlinx-datetime 的 [LocalDate] 年份范围及农历可靠年表对齐；
+ * 上界取 9999-12-31 当天日末（等效 10000-01-01 零点减一毫秒），使当天任意
+ * 时刻的毫秒值都在界内。
  */
 private val MIN_TARGET_DAY_MILLIS =
-    LocalDate
-        .of(1, 1, 1)
-        .atStartOfDay(ZoneOffset.UTC)
-        .toInstant()
-        .toEpochMilli()
+    LocalDate(1, 1, 1)
+        .atStartOfDayIn(TimeZone.UTC)
+        .toEpochMilliseconds()
 
 private val MAX_TARGET_DAY_MILLIS =
-    LocalDate
-        .of(10000, 1, 1)
-        .atStartOfDay(ZoneOffset.UTC)
-        .toInstant()
-        .toEpochMilli() - 1
+    LocalDate(9999, 12, 31)
+        .atStartOfDayIn(TimeZone.UTC)
+        .toEpochMilliseconds() + 86_399_999L
 
 /**
  * 倒计时日程的目标时间描述：锚点目标日、时刻与重复规则。
@@ -64,9 +62,9 @@ public data class Schedule(
 
     public companion object {
         /**
-         * [repeatInterval] 的上界：任意重复单位取上界时组合出的日期仍落在
-         * java.time 支持的年份范围内（如 2026 年锚点每 100000 年重复一次），
-         * 推算不会裸抛 JDK 的 DateTimeException。
+         * [Schedule.repeatInterval] 的上界：任意重复单位取上界时仍可在构造期
+         * 完成全部校验；推算中组合出的日期一旦越出支持范围（0001-01-01..
+         * 9999-12-31，公历与农历统一）立即抛 [IllegalStateException]。
          */
         public const val MAX_REPEAT_INTERVAL: Int = 100_000
     }

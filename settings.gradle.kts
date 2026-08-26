@@ -2,6 +2,7 @@ pluginManagement {
     repositories {
         mavenCentral()
         gradlePluginPortal()
+        google()
     }
 }
 
@@ -10,9 +11,12 @@ plugins {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    // PREFER_PROJECT：wasmJs 的 Node.js 分发仓库（nodejs.org/dist，ivy 布局）由插件按工程注入，
+    // 需允许工程仓库；其余依赖仍可命中 mavenCentral/google
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
     repositories {
         mavenCentral()
+        google()
     }
 }
 

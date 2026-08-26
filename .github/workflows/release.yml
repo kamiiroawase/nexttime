@@ -1,0 +1,52 @@
+name: Release
+
+# v* tag 推送时：发布产物（aar/jar/klib + pom/module/sources）作为 GitHub Release 附件；
+# Release 不存在则自动创建，已存在则补充附件。测试由 Build 工作流在 main 推送时
+# 完整执行（tag 指向的提交即已验证的提交），此处不重复跑测试
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+          cache-dependency-path: |
+            gradle/libs.versions.toml
+            gradle/wrapper/gradle-wrapper.properties
+            **/*.gradle.kts
+
+      - name: Publish to local Maven
+        run: chmod +x gradlew && ./gradlew publishToMavenLocal
+
+      - name: Collect artifacts
+        run: |
+          GROUP_DIR="$HOME/.m2/repository/com/github/kamiiroawase"
+          VERSION="${GITHUB_REF_NAME#v}"
+          STAGE=release-assets
+          mkdir -p "$STAGE"
+          for mod in nexttime nexttime-android nexttime-jvm nexttime-iosarm64 nexttime-iossimulatorarm64 nexttime-wasm-js; do
+            MOD_DIR="$GROUP_DIR/$mod/$VERSION"
+            test -d "$MOD_DIR" || { echo "missing module dir: $MOD_DIR"; exit 1; }
+            find "$MOD_DIR" -maxdepth 1 -type f ! -name "maven-metadata-local.xml" -exec cp {} "$STAGE/" \;
+          done
+          echo "Release artifacts:"
+          ls -l "$STAGE"
+
+      - name: Upload to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true

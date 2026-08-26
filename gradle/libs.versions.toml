@@ -1,15 +1,15 @@
 [versions]
-junit = "5.13.4"
+agp = "9.3.2"
 kotlin = "2.4.10"
-lunar = "1.7.7"
-spotless = "7.0.4"
+kotlinx-datetime = "0.8.0"
+spotless = "8.10.0"
+tyme4kt = "1.5.0"
 
 [libraries]
-junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
-junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
-junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
-lunar = { module = "cn.6tail:lunar", version.ref = "lunar" }
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
+tyme4kt = { module = "cn.6tail:tyme4kt", version.ref = "tyme4kt" }
 
 [plugins]
-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
