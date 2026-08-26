@@ -16,6 +16,7 @@ import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
 
 /** 公历 nextTarget：组合、步进、月末收缩、夏令时与入参校验 */
+@Suppress("NonAsciiCharacters", "RemoveRedundantBackticks")
 class NextTargetTest {
     @Test
     fun `不重复返回目标日组合时刻`() {

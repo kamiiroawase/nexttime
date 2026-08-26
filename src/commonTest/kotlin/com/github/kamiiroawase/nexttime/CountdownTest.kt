@@ -4,6 +4,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /** countdown：量级细分、已过/未到对称与秒级取整 */
+@Suppress("NonAsciiCharacters", "RemoveRedundantBackticks")
 class CountdownTest {
     @Test
     fun `满一天取天`() {

@@ -141,7 +141,7 @@ public fun Schedule.nextTarget(
     // 锚点日期范围已在构造期校验（0001..9999），换算出的农历年落在可靠年表
     // 范围内，无需在此重复拦截
     return nextLunarTarget(
-        SolarDay.fromYmd(date.year, date.month.ordinal + 1, date.dayOfMonth).getLunarDay(),
+        SolarDay.fromYmd(date.year, date.month.ordinal + 1, date.day).getLunarDay(),
         time,
         now,
         zone,

@@ -9,6 +9,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
 /** 结果不变量：对一组典型重复日程断言普适性质，防回归 */
+@Suppress("NonAsciiCharacters", "RemoveRedundantBackticks")
 class InvariantTest {
     private val apia: TimeZone = TimeZone.of("Pacific/Apia")
 

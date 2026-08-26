@@ -14,6 +14,7 @@ import kotlin.time.Duration.Companion.days
 import kotlin.time.Instant
 
 /** 农历 nextTarget：以 2025 农历年（闰六月）为核心场景 */
+@Suppress("NonAsciiCharacters", "RemoveRedundantBackticks")
 class LunarNextTargetTest {
     private fun lunarOf(
         target: Instant,

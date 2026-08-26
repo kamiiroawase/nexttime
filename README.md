@@ -29,13 +29,47 @@ repositories {
     maven("https://jitpack.io")
     mavenCentral()   // 传递依赖 tyme4kt / kotlinx-datetime
 }
+```
 
+**2.0.0 起按平台引变体模块，1.x 的根坐标不可用**。JitPack 把 KMP 六模块改发到组 `com.github.kamiiroawase.nexttime`（组名带仓库名），不托管根模块的变体元数据（`.module`），并把根 POM 改写为连带声明全部六模块（含 `klib` 类型的 iosarm64 / iosSimulatorArm64 / wasm-js 等 native 依赖）——Android 等单平台工程直接依赖 `com.github.kamiiroawase:nexttime` 会解析报 `No matching variant`。各平台变体模块自身完整（产物 + `.module` + POM 及 tyme4kt / kotlinx-datetime 传递依赖），按消费平台取坐标：
+
+| 消费平台 | 坐标 | 产物 |
+|---|---|---|
+| Android | `com.github.kamiiroawase.nexttime:nexttime-android:2.0.0` | aar |
+| JVM | `com.github.kamiiroawase.nexttime:nexttime-jvm:2.0.0` | jar |
+| iOS 真机（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iosarm64:2.0.0` | klib |
+| iOS 模拟器（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iossimulatorarm64:2.0.0` | klib |
+| wasmJs | `com.github.kamiiroawase.nexttime:nexttime-wasm-js:2.0.0` | klib |
+
+单平台工程（版本目录写法；JVM 工程把模块名换成 `nexttime-jvm`）：
+
+```toml
+[versions]
+nexttime = "2.0.0"
+
+[libraries]
+nexttime-android = { module = "com.github.kamiiroawase.nexttime:nexttime-android", version.ref = "nexttime" }
+```
+
+```kotlin
 dependencies {
-    implementation("com.github.kamiiroawase:nexttime:2.0.0")
+    implementation(libs.nexttime.android)
 }
 ```
 
-KMP 项目在 `commonMain` 声明一次即可，各目标平台自动解析对应变体（`-android` / `-jvm` / `-iosarm64` / `-iossimulatorarm64` / `-wasm-js`）。
+KMP 工程按目标源集各引对应变体。JitPack 上没有可解析的 common 元数据，`commonMain` 无法直接引用本库 API；需要在共享代码中调用时，要么用 GitHub Release 附件自建 Maven 仓库（附件为发布产物原件，原始组 `com.github.kamiiroawase`，按 maven 仓库目录结构放回后根模块 `.module` 完整可用，`commonMain` 声明一次根坐标即全平台自动解析），要么在 `commonMain` 定义自有接口与数据类型、各平台源集引变体实现：
+
+```kotlin
+kotlin {
+    sourceSets {
+        androidMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-android:2.0.0") }
+        jvmMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-jvm:2.0.0") }
+        iosArm64Main.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-iosarm64:2.0.0") }
+        iosSimulatorArm64Main.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-iossimulatorarm64:2.0.0") }
+        wasmJsMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-wasm-js:2.0.0") }
+    }
+}
+```
 
 ## 快速上手
 
@@ -215,6 +249,7 @@ Schedule(
 ## 已知限制与常见坑
 
 - **`targetDay` 支持范围为 0001-01-01 至 9999-12-31（UTC 日期）**：-1 是「未选」哨兵；1970 年前日期以负毫秒表示（`MaterialDatePicker` 的负返回值可直接存入），纪元日 1970-01-01 的毫秒值 0 同样合法；范围外的年份构造 `Schedule` 即拒
+- **JitPack 坐标 2.0.0 起按平台拆分**：JitPack 把 KMP 六模块改发到组 `com.github.kamiiroawase.nexttime`，且不托管根模块的 `.module`、把根 POM 改写为连带声明全部平台变体（含 native `klib`）——Android 工程直接依赖根坐标 `com.github.kamiiroawase:nexttime` 解析报 `No matching variant`，必须按[引入](#引入)的平台表引 `nexttime-android` / `nexttime-jvm` / `nexttime-iosarm64` / `nexttime-iossimulatorarm64` / `nexttime-wasm-js`；`commonMain` 共享消费需自建 Maven 仓库镜像 Release 附件（原始组 `com.github.kamiiroawase`，根模块元数据完整）
 - **2.0.0 API 破坏性变更**：`nextTarget`/`countdown` 全面改用 `kotlin.time.Instant` 与 `kotlinx-datetime.TimeZone`（1.x 为 `java.time.ZonedDateTime/ZoneId`）；1.x 调用方以 `instant.toLocalDateTime(zone)` 迁移
 - **推算结果统一以 9999-12-31 为界**：公历与农历越过即抛 `IllegalStateException`。1.2.x 公历月/年重复曾可组合出 10359 年等界外结果，受 kotlinx-datetime 的 `LocalDate` 年份范围（0000..9999）限制不再支持；`repeatInterval` 上界 100000 不变，周单位上界间隔（约 1916 年）仍在范围内正常组合
 - **时分秒「要么全选、要么全不选」**：任一字段为 -1 时整体按 00:00:00 组合，其余已选字段被静默丢弃——`targetHour = 8` 而 `targetMinute = -1` 得到的是零点，不是 08:00
