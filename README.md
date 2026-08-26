@@ -35,17 +35,17 @@ repositories {
 
 | 消费平台 | 坐标 | 产物 |
 |---|---|---|
-| Android | `com.github.kamiiroawase.nexttime:nexttime-android:2.0.0` | aar |
-| JVM | `com.github.kamiiroawase.nexttime:nexttime-jvm:2.0.0` | jar |
-| iOS 真机（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iosarm64:2.0.0` | klib |
-| iOS 模拟器（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iossimulatorarm64:2.0.0` | klib |
-| wasmJs | `com.github.kamiiroawase.nexttime:nexttime-wasm-js:2.0.0` | klib |
+| Android | `com.github.kamiiroawase.nexttime:nexttime-android:2.0.1` | aar |
+| JVM | `com.github.kamiiroawase.nexttime:nexttime-jvm:2.0.1` | jar |
+| iOS 真机（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iosarm64:2.0.1` | klib |
+| iOS 模拟器（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iossimulatorarm64:2.0.1` | klib |
+| wasmJs | `com.github.kamiiroawase.nexttime:nexttime-wasm-js:2.0.1` | klib |
 
 单平台工程（版本目录写法；JVM 工程把模块名换成 `nexttime-jvm`）：
 
 ```toml
 [versions]
-nexttime = "2.0.0"
+nexttime = "2.0.1"
 
 [libraries]
 nexttime-android = { module = "com.github.kamiiroawase.nexttime:nexttime-android", version.ref = "nexttime" }
@@ -62,11 +62,11 @@ KMP 工程按目标源集各引对应变体。JitPack 上没有可解析的 comm
 ```kotlin
 kotlin {
     sourceSets {
-        androidMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-android:2.0.0") }
-        jvmMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-jvm:2.0.0") }
-        iosArm64Main.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-iosarm64:2.0.0") }
-        iosSimulatorArm64Main.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-iossimulatorarm64:2.0.0") }
-        wasmJsMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-wasm-js:2.0.0") }
+        androidMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-android:2.0.1") }
+        jvmMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-jvm:2.0.1") }
+        iosArm64Main.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-iosarm64:2.0.1") }
+        iosSimulatorArm64Main.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-iossimulatorarm64:2.0.1") }
+        wasmJsMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-wasm-js:2.0.1") }
     }
 }
 ```
@@ -268,6 +268,12 @@ Schedule(
 ```
 
 ## 版本历史
+
+### 2.0.1（2026-08-26）
+
+- 文档修正：**JitPack 坐标按平台拆分**（2.0.0 转成 KMP 库后引入坐标变化，非仅版本号）——JitPack 把六模块改发到组 `com.github.kamiiroawase.nexttime` 且不托管根模块 `.module`、把根 POM 改写为连带声明全部平台变体（含 native `klib`），Android 工程直接依赖根坐标 `com.github.kamiiroawase:nexttime` 解析报 `No matching variant`；README「引入」改为五平台变体坐标表（Android / JVM / iOS 真机 / iOS 模拟器 / wasmJs，均经 JitPack 产物探针实测 200），KMP 工程按目标源集各引变体，`commonMain` 共享消费给出 Release 附件自建镜像与接口抽象两条路径；「已知限制」同步补记
+- 消除废弃 API 警告：`LocalDate.dayOfMonth` → `day`（kotlinx-datetime 0.8.0 更名，行为不变）
+- 测试类补充 IDE 检查抑制（`@Suppress`），用例数不变（101 × 三平台）
 
 ### 2.0.0（2026-08-26）
 
