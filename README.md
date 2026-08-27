@@ -10,7 +10,7 @@ Kotlin Multiplatform 库（commonMain 单一代码），目标平台：**Android
 ## 特性
 
 - **正反向推算**：`nextTarget()` 推进到下一个目标时刻（可带上限 `until`）；`previousTarget()` 取不晚于某时刻的最近一次出现；`anchor()` 暴露第一次出现
-- **公历与农历重复**：天/周/月/年；农历月/年重复沿农历推进，闰月可选参与或跳过；月末收缩以锚点日为基准、后续回弹（1月31日 → 2月28日 → 3月31日），公历农历一致
+- **公历与农历重复**：小时/分钟/天/周/月/年；小时/分钟为真实时长间隔（每 8 小时 = 8 个真实小时，跨日连续），天及以上为日历格点；农历月/年重复沿农历推进，闰月可选参与或跳过；月末收缩以锚点日为基准、后续回弹（1月31日 → 2月28日 → 3月31日），公历农历一致
 - **时区与夏令时安全**：目标日按 UTC 毫秒存储，组合时刻按指定时区；缺口时刻自动顺延（如纽约 02:30 → 03:30）、重叠取较早一次
 - **倒计时**：`countdown()` 输出「已过/未到 + 量级 + 单位」的结构化状态（可选进一模式）；`calendarCountdown()` 按日历细分年/月/日/时/分/秒（适合「X年X月X天」展示）
 - **性能**：长跨度推算按周期直算或跳过远期历法换算，不逐周期迭代，反向推算复用同一套快路径
@@ -28,17 +28,17 @@ repositories {
 
 | 消费平台 | 坐标 |
 |---|---|
-| Android | `com.github.kamiiroawase.nexttime:nexttime-android:2.1.0` |
-| JVM | `com.github.kamiiroawase.nexttime:nexttime-jvm:2.1.0` |
-| iOS 真机（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iosarm64:2.1.0` |
-| iOS 模拟器（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iossimulatorarm64:2.1.0` |
-| wasmJs | `com.github.kamiiroawase.nexttime:nexttime-wasm-js:2.1.0` |
+| Android | `com.github.kamiiroawase.nexttime:nexttime-android:2.2.0` |
+| JVM | `com.github.kamiiroawase.nexttime:nexttime-jvm:2.2.0` |
+| iOS 真机（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iosarm64:2.2.0` |
+| iOS 模拟器（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iossimulatorarm64:2.2.0` |
+| wasmJs | `com.github.kamiiroawase.nexttime:nexttime-wasm-js:2.2.0` |
 
 单平台工程（版本目录写法，JVM 工程换 `nexttime-jvm`）：
 
 ```toml
 [versions]
-nexttime = "2.1.0"
+nexttime = "2.2.0"
 
 [libraries]
 nexttime-android = { module = "com.github.kamiiroawase.nexttime:nexttime-android", version.ref = "nexttime" }
@@ -55,7 +55,7 @@ KMP 工程按目标源集各引变体。JitPack 上没有 common 元数据，`co
 ```kotlin
 kotlin {
     sourceSets {
-        androidMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-android:2.1.0") }
+        androidMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-android:2.2.0") }
         // jvmMain / iosArm64Main / iosSimulatorArm64Main / wasmJsMain 换对应变体
     }
 }
@@ -126,6 +126,14 @@ Schedule(
     repeatUnit = RepeatUnit.MONTH
 )
 
+// 纯间隔重复：每 8 小时（真实时长，跨日连续、跨夏令时间隔不变）
+Schedule(
+    targetDay = utcMillis(LocalDate(2026, 8, 26)),
+    targetHour = 8,
+    repeatInterval = 8,
+    repeatUnit = RepeatUnit.HOUR
+)
+
 // 带结束时间的重复：结束后正向返回 null，完结展示改锚定「结束前最后一次出现」
 val end = LocalDateTime(2026, 12, 31).toInstant(zone)
 schedule.nextTarget(now, zone, end)   // 出现晚于 end → null（锚点本身不受限）
@@ -141,14 +149,14 @@ schedule.anchor(zone)                 // 第一次出现
 
 | 字段 | 类型 | 默认值 | 说明 |
 |---|---|---|---|
-| `lunar` | Boolean | false | 目标日按农历解释，月/年重复沿农历推进（天/周重复与公历无异） |
+| `lunar` | Boolean | false | 目标日按农历解释，月/年重复沿农历推进（天/周/小时/分钟重复与公历无异） |
 | `leapCount` | Boolean | false | 农历时闰月是否参与重复推算，详见[农历重复语义](#农历重复语义) |
 | `targetDay` | Long | -1 | 目标日 UTC 毫秒值，-1 表示未选（推算函数返回 null） |
 | `targetHour` | Int | -1 | 目标时，-1 表示未选 |
 | `targetMinute` | Int | -1 | 目标分，-1 表示未选 |
 | `targetSecond` | Int | -1 | 目标秒，-1 表示未选 |
 | `repeatInterval` | Int | 0 | 重复间隔（0..100000），0 视为不重复 |
-| `repeatUnit` | Int | RepeatUnit.NONE | 重复单位，取 `RepeatUnit.NONE/DAY/WEEK/MONTH/YEAR` |
+| `repeatUnit` | Int | RepeatUnit.NONE | 重复单位，取 `RepeatUnit.NONE/DAY/WEEK/MONTH/YEAR/HOUR/MINUTE` |
 
 关于 `targetDay`：
 
@@ -186,9 +194,10 @@ fun Schedule.anchor(zone: TimeZone = TimeZone.currentSystemDefault()): Instant?
 | 推算越过 0001..9999 | 抛 `IllegalStateException`，不会死循环；`previousTarget` 例外：返回界内最后一次出现 |
 | 时分秒任一未选 | 按 00:00:00 组合 |
 | 农历 + 天/周重复 | 与公历相同 |
+| 小时/分钟重复 | **真实时长格点**：出现 = 锚点 + 步数×间隔，跨日连续；`lunar` 无关；**不受 0001..9999 上界守护**（Instant 值域内任意推进） |
 | 月/年重复遇短月/平年 | 收缩到当月最接近锚点日的一天，后续回弹（1/31 → 2/28 → 3/31；2/29 → 平年 2/28 → 闰年 2/29） |
 
-夏令时：每次出现独立按「日期 + 时刻 + 时区」组合——缺口时刻顺延（仅影响当日）、重叠取较早一次；`anchor()` 在锚点日落缺口时同样返回顺延后的时刻，恒等于第一次出现。
+夏令时的两套语义：天及以上单位每次出现独立按「日期 + 时刻 + 时区」组合（钟面格点）——缺口时刻顺延（仅影响当日）、重叠取较早一次，跨夏令时每天出现在同一本地时刻；`anchor()` 在锚点日落缺口时同样返回顺延后的时刻，恒等于第一次出现。小时/分钟按真实时长推进（ISO 8601 time-based 惯例）——间隔不变、跨夏令时本地钟面漂移 1 小时。
 
 ### 倒计时：countdown / calendarCountdown
 
@@ -263,12 +272,13 @@ fun Countdown.zhText(): String {
 - **`nextTarget(now, zone)` 成对传**：传入非默认时区的 `now` 时务必同传 `zone`，否则日期按系统时区组合、时刻与 `now` 比较，语义静默分裂
 - **不重复日程不推进**：目标已过仍原样返回过去时刻，`countdown()` 会如实报告「已过」；需要自动推进请配置重复规则
 - **`countdown()` 只有单一量级**：没有周单位，也没有时分混合的复合细分（如「3天4小时」；钟面年月日时分秒复合细分用 `calendarCountdown()`）
+- **两套重复语义按单位分界**（ISO 8601 惯例）：天及以上为钟面格点（跨夏令时每天出现在同一本地时刻），小时/分钟为真实时长格点（间隔不变、本地钟面跨夏令时漂移 1 小时，且不受 0001..9999 上界守护、不抛越界异常）
 - **iOS 无 x64 模拟器目标**（对齐 tyme4kt 发布面，仅 arm64 真机与模拟器）；Android minSdk 24+、JVM 11+，无需 desugaring
 - **JitPack 按平台引变体**，根坐标不可用（见[引入](#引入)）
 
 ## 测试
 
-138 个用例（`kotlin.test`，commonTest）覆盖公历/农历推算、闰月、月末收缩、DST 缺口/重叠/跳日、范围边界、正反对偶不变量、倒计时取整与日历分量；在 JVM、Android 单元测试与 wasm(Node) 三平台运行，iOS 模拟器由 macOS CI 执行。
+150 个用例（`kotlin.test`，commonTest）覆盖公历/农历推算、闰月、月末收缩、DST 缺口/重叠/跳日、小时/分钟真实时长格点（含跨 DST 漂移与两千年长跨度）、范围边界、正反对偶不变量、倒计时取整与日历分量；在 JVM、Android 单元测试与 wasm(Node) 三平台运行，iOS 模拟器由 macOS CI 执行。
 
 ```
 ./gradlew build
@@ -276,6 +286,7 @@ fun Countdown.zhText(): String {
 
 ## 版本历史
 
+- **2.2.0**（2026-08-27）：重复单位新增小时/分钟（真实时长格点：出现 = 锚点 + 步数×间隔，跨日连续、跨夏令时本地钟面漂移，不受 9999 上界守护；天及以上仍为钟面格点）；修复天/周快路径在锚点距 now 超 292 年时因 Duration 纳秒饱和误抛越界异常
 - **2.1.0**（2026-08-26）：新增 `previousTarget` / `anchor` / `nextTarget(until)` / `countdown` 取整模式 / `calendarCountdown`（纯增量，无破坏性变更）
 - **2.0.0**（2026-08-26）：迁移 Kotlin Multiplatform（Android/JVM/iOS/wasmJs）；API 改用 `kotlin.time.Instant` 与 `kotlinx-datetime.TimeZone`，1.x 的 `ZonedDateTime` 调用方以 `instant.toLocalDateTime(zone)` 迁移；JitPack 坐标按平台拆分
 - **1.x**（2026-08）：单平台版本（java.time + lunar-java），历史明细见 [Releases](https://github.com/kamiiroawase/nexttime/releases)

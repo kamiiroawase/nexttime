@@ -343,7 +343,8 @@ class NextTargetTest {
         assertFailsWith<IllegalArgumentException> { Schedule(repeatInterval = Schedule.MAX_REPEAT_INTERVAL + 1) }
         assertFailsWith<IllegalArgumentException> { Schedule(repeatUnit = 7) }
         assertFailsWith<IllegalArgumentException> { Schedule(repeatUnit = -1) }
-        assertFailsWith<IllegalArgumentException> { Schedule(repeatUnit = 5) }
+        // 5 曾是非法值，2.2.0 起为 RepeatUnit.HOUR；越上界的 8 仍拒绝
+        assertFailsWith<IllegalArgumentException> { Schedule(repeatUnit = 8) }
     }
 
     @Test

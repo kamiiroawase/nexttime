@@ -30,7 +30,7 @@ private val MAX_TARGET_DAY_MILLIS =
  * 被拒绝）；[repeatInterval] 须在 0..[MAX_REPEAT_INTERVAL]；[repeatUnit] 须为
  * [RepeatUnit] 常量之一。
  *
- * @param lunar 目标日按农历解释：月/年重复沿农历推进，天/周重复与公历无异
+ * @param lunar 目标日按农历解释：月/年重复沿农历推进，天/周/小时/分钟重复与公历无异
  * @param leapCount 农历时闰月是否参与重复推算
  * @param targetDay 目标日 UTC 毫秒值，-1 表示未选；支持 0001-01-01 至 9999-12-31 的日期（1970 年前为负毫秒）
  * @param targetHour 目标时，-1 表示未选（时分秒任一未选按当天零点）
@@ -57,7 +57,7 @@ public data class Schedule(
         require(targetMinute in -1..59) { "targetMinute must be in 0..59 or -1 for unset, got: $targetMinute" }
         require(targetSecond in -1..59) { "targetSecond must be in 0..59 or -1 for unset, got: $targetSecond" }
         require(repeatInterval in 0..MAX_REPEAT_INTERVAL) { "repeatInterval must be in 0..$MAX_REPEAT_INTERVAL, got: $repeatInterval" }
-        require(repeatUnit in RepeatUnit.NONE..RepeatUnit.YEAR) { "repeatUnit must be a RepeatUnit constant, got: $repeatUnit" }
+        require(repeatUnit in RepeatUnit.NONE..RepeatUnit.MINUTE) { "repeatUnit must be a RepeatUnit constant, got: $repeatUnit" }
     }
 
     public companion object {
@@ -71,7 +71,10 @@ public data class Schedule(
 }
 
 /**
- * [Schedule.repeatUnit] 的取值常量。
+ * [Schedule.repeatUnit] 的取值常量。天/周/月/年为日历单位——出现按「日期 + 时刻 +
+ * 时区」组合（钟面格点），跨夏令时缺口顺延、重叠取较早；小时/分钟为时间单位——
+ * 出现 = 锚点 + 步数×间隔（真实时长格点），跨夏令时本地时刻随真实间隔漂移。
+ * 与 ISO 8601 划分 date-based / time-based 的惯例一致。
  */
 public object RepeatUnit {
     /** 不重复 */
@@ -88,4 +91,10 @@ public object RepeatUnit {
 
     /** 年重复 */
     public const val YEAR: Int = 4
+
+    /** 小时重复（真实时长格点，不受 0001..9999 日期界守护约束） */
+    public const val HOUR: Int = 5
+
+    /** 分钟重复（真实时长格点，不受 0001..9999 日期界守护约束） */
+    public const val MINUTE: Int = 6
 }

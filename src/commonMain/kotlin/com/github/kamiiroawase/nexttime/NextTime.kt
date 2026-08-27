@@ -97,6 +97,12 @@ public fun Schedule.anchor(zone: TimeZone = TimeZone.currentSystemDefault()): In
  * 推算年份（公历与农历）越过支持范围 0001..9999 时抛 [IllegalStateException]，
  * 不会死循环；锚点日期范围已在构造期校验。
  *
+ * 小时/分钟重复按**真实时长格点**（出现 = 锚点 + 步数×间隔，ISO 8601 的
+ * time-based 惯例）：不经「日期 + 时刻 + 时区」组合，跨夏令时出现时刻的本地
+ * 钟面随真实间隔漂移（无缺口顺延/重叠取较早语义）；只做 Instant 算术，
+ * **不受 0001..9999 日期界守护约束**（Instant 值域内任意推进，不抛越界异常）。
+ * lunar 标志与小时/分钟无关（同天/周）。
+ *
  * @param until 重复推进的可选上限：出现晚于 until 时返回 null（出现序列单调，
  * 后续必然全部超限，重复已完结）。仅约束重复推进——非重复日程与锚点本身
  * （尚在未来、原样返回的路径）不受 until 影响，重复结束不能追溯取消锚点
@@ -116,6 +122,28 @@ public fun Schedule.nextTarget(
         return compose(date, time, zone)
     }
 
+    if (repeatUnit == RepeatUnit.HOUR || repeatUnit == RepeatUnit.MINUTE) {
+        // 真实时长格点：出现 = 锚点 + 步数×周期秒。epoch 秒运算（而非 Duration）：
+        // 两千年级跨度的纳秒差会饱和 Long（约 292 年上限）。秒差向下取整后真实
+        // 步数至多多一步，小步前推兜住亚秒分量
+        val anchor = compose(date, time, zone)
+        if (anchor >= now) return anchor
+
+        val periodSeconds =
+            if (repeatUnit == RepeatUnit.HOUR) {
+                repeatInterval * 3600L
+            } else {
+                repeatInterval * 60L
+            }
+        val anchorSeconds = anchor.epochSeconds
+        var step = (now.epochSeconds - anchorSeconds) / periodSeconds
+        while (true) {
+            val next = Instant.fromEpochSeconds(anchorSeconds + step * periodSeconds)
+            if (next >= now) return capped(next, until)
+            step++
+        }
+    }
+
     if (!lunar || repeatUnit == RepeatUnit.DAY || repeatUnit == RepeatUnit.WEEK) {
         val anchor = compose(date, time, zone)
         if (anchor >= now) return anchor
@@ -131,10 +159,12 @@ public fun Schedule.nextTarget(
                 } else {
                     repeatInterval * 7L
                 }
+            // epoch 秒差而非 Duration：两千年级跨度的纳秒差会饱和 Long（约 292 年上限）
             var step =
                 maxOf(
                     1L,
-                    ((now - anchor).inWholeSeconds - ZONE_DISCONTINUITY_SLACK_SECONDS) / (periodDays * 86400),
+                    (now.epochSeconds - anchor.epochSeconds - ZONE_DISCONTINUITY_SLACK_SECONDS) /
+                        (periodDays * 86400),
                 )
             while (true) {
                 val days = step * periodDays
@@ -190,7 +220,8 @@ public fun Schedule.nextTarget(
  * 不抛异常——出现序列在界内天然有尽，与 [nextTarget] 的越界语义不同。
  *
  * 组合时刻、夏令时缺口顺延/重叠取较早、月末收缩等语义与 [nextTarget] 完全
- * 一致：两者遍历的是同一条出现序列。
+ * 一致：两者遍历的是同一条出现序列；小时/分钟重复同为真实时长格点（不晚于
+ * before 的最后一步，同样不受 0001..9999 日期界守护约束）。
  */
 public fun Schedule.previousTarget(
     before: Instant = Clock.System.now(),
@@ -206,6 +237,20 @@ public fun Schedule.previousTarget(
 
     if (repeatInterval <= 0 || repeatUnit == RepeatUnit.NONE) return anchor
 
+    if (repeatUnit == RepeatUnit.HOUR || repeatUnit == RepeatUnit.MINUTE) {
+        // 与 nextTarget 同一真实时长格点：不晚于 before 的最后一步（含等于）。
+        // epoch 秒向下取整保证该步出现必然不晚于 before，无需回退
+        val periodSeconds =
+            if (repeatUnit == RepeatUnit.HOUR) {
+                repeatInterval * 3600L
+            } else {
+                repeatInterval * 60L
+            }
+        val anchorSeconds = anchor.epochSeconds
+        val step = (before.epochSeconds - anchorSeconds) / periodSeconds
+        return Instant.fromEpochSeconds(anchorSeconds + step * periodSeconds)
+    }
+
     if (!lunar || repeatUnit == RepeatUnit.DAY || repeatUnit == RepeatUnit.WEEK) {
         if (repeatUnit == RepeatUnit.DAY || repeatUnit == RepeatUnit.WEEK) {
             // 与 nextTarget 对偶：周期秒偏大估计（留时区不连续余量）得到步数上界，
@@ -216,10 +261,12 @@ public fun Schedule.previousTarget(
                 } else {
                     repeatInterval * 7L
                 }
+            // epoch 秒差而非 Duration：两千年级跨度的纳秒差会饱和 Long（约 292 年上限）
             val estimate =
                 maxOf(
                     0L,
-                    ((before - anchor).inWholeSeconds + ZONE_DISCONTINUITY_SLACK_SECONDS) / (periodDays * 86400),
+                    (before.epochSeconds - anchor.epochSeconds + ZONE_DISCONTINUITY_SLACK_SECONDS) /
+                        (periodDays * 86400),
                 )
             val maxSteps = (MAX_SUPPORTED_EPOCH_DAYS - date.toEpochDays()) / periodDays
             var step = minOf(estimate, maxSteps)
