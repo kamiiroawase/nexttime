@@ -155,6 +155,7 @@ public fun calendarCountdown(
     now: Instant,
     zone: TimeZone,
 ): CalendarCountdown {
+    ensureIanaTzdb()
     val past = target < now
     val period = if (past) target.periodUntil(now, zone) else now.periodUntil(target, zone)
 

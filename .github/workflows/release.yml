@@ -1,8 +1,9 @@
 name: Release
 
 # v* tag 推送时：发布产物（aar/jar/klib + pom/module/sources）作为 GitHub Release 附件；
-# Release 不存在则自动创建，已存在则补充附件。测试由 Build 工作流在 main 推送时
-# 完整执行（tag 指向的提交即已验证的提交），此处不重复跑测试
+# Release 不存在则自动创建，已存在则补充附件。发布前跑全部主机侧测试
+# （JVM/Android/wasm）——tag 可能指向未经 Build 工作流验证的提交，测试失败即
+# 中止发布；iOS 模拟器测试仍由 Build 工作流的 macos job 覆盖
 on:
   push:
     tags: [ 'v*' ]
@@ -28,8 +29,11 @@ jobs:
             gradle/wrapper/gradle-wrapper.properties
             **/*.gradle.kts
 
+      - name: Run tests
+        run: chmod +x gradlew && ./gradlew allTests
+
       - name: Publish to local Maven
-        run: chmod +x gradlew && ./gradlew publishToMavenLocal
+        run: ./gradlew publishToMavenLocal
 
       - name: Collect artifacts
         run: |

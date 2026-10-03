@@ -15,7 +15,6 @@ import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.until
 import kotlin.time.Clock
-import kotlin.time.Duration
 import kotlin.time.Instant
 
 /**
@@ -316,40 +315,14 @@ public fun Schedule.previousTarget(
 /**
  * 倒计时状态：时长先向上取整到完整秒（tick 与秒边界不对齐时进位不闪跳；
  * 目标与当前恰为同一瞬间时输出 0 秒），再细分出展示量级；已过的时间对称细分。
+ *
+ * 等价于三参重载取 [Rounding.TRUNCATE]，逻辑统一由其实现。本重载留在本文件以
+ * 维持已发布版本的 JVM 二进制兼容（编译产物为 NextTimeKt.countdown），勿移动。
  */
 public fun countdown(
     target: Instant,
     now: Instant,
-): Countdown {
-    val duration = target - now
-
-    return if (duration.isNegative()) {
-        breakdown(duration.absoluteValue, past = true)
-    } else {
-        breakdown(duration, past = false)
-    }
-}
-
-private fun breakdown(
-    duration: Duration,
-    past: Boolean,
-): Countdown {
-    val totalSeconds =
-        duration.toComponents { seconds, nanoseconds ->
-            seconds + if (nanoseconds > 0) 1L else 0L
-        }
-
-    val days = totalSeconds / 86400
-    val hours = totalSeconds / 3600
-    val minutes = totalSeconds / 60
-
-    return when {
-        days >= 1 -> Countdown(past, days, CountdownUnit.DAYS)
-        hours >= 1 -> Countdown(past, hours, CountdownUnit.HOURS)
-        minutes >= 1 -> Countdown(past, minutes, CountdownUnit.MINUTES)
-        else -> Countdown(past, totalSeconds, CountdownUnit.SECONDS)
-    }
-}
+): Countdown = countdown(target, now, Rounding.TRUNCATE)
 
 /**
  * 农历月/年重复推算：月重复沿农历月序列步进，年重复保持农历月日。

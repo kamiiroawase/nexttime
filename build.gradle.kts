@@ -14,8 +14,8 @@ group = "com.github.kamiiroawase"
 
 // 版本优先级：-Pversion（JitPack 打 tag 时传入，如 v1.1.0 → 1.1.0）＞ git tag 推导
 // （CI 需完整克隆 fetch-depth=0；HEAD 恰在 tag 上得到精确版本，之后沿用最近可达 tag）
-// ＞ 0.0.0-SNAPSHOT（无 tag 或无 git 环境）
-// （无 tag 或无 git 环境）。不可硬编码版本号，否则会覆盖 JitPack 传入值造成 tag 与产物版本脱节
+// ＞ 0.0.0-SNAPSHOT（无 tag 或无 git 环境）。
+// 不可硬编码版本号，否则会覆盖 JitPack 传入值造成 tag 与产物版本脱节
 version =
     providers
         .gradleProperty("version")
@@ -75,7 +75,13 @@ kotlin {
             dependencies {
                 // kotlinx-datetime 在 wasm 平台的 IANA 时区库取自 @js-joda/timezone（副作用注入
                 // ZoneRulesProvider），由本库引入并随 klib 传递给消费方
-                implementation(npm("@js-joda/timezone", "2.25.2"))
+                implementation(
+                    npm(
+                        "@js-joda/timezone",
+                        libs.versions.js.joda.timezone
+                            .get(),
+                    ),
+                )
             }
         }
     }
