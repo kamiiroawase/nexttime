@@ -28,17 +28,17 @@ repositories {
 
 | 消费平台 | 坐标 |
 |---|---|
-| Android | `com.github.kamiiroawase.nexttime:nexttime-android:2.2.0` |
-| JVM | `com.github.kamiiroawase.nexttime:nexttime-jvm:2.2.0` |
-| iOS 真机（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iosarm64:2.2.0` |
-| iOS 模拟器（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iossimulatorarm64:2.2.0` |
-| wasmJs | `com.github.kamiiroawase.nexttime:nexttime-wasm-js:2.2.0` |
+| Android | `com.github.kamiiroawase.nexttime:nexttime-android:2.2.1` |
+| JVM | `com.github.kamiiroawase.nexttime:nexttime-jvm:2.2.1` |
+| iOS 真机（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iosarm64:2.2.1` |
+| iOS 模拟器（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iossimulatorarm64:2.2.1` |
+| wasmJs | `com.github.kamiiroawase.nexttime:nexttime-wasm-js:2.2.1` |
 
 单平台工程（版本目录写法，JVM 工程换 `nexttime-jvm`）：
 
 ```toml
 [versions]
-nexttime = "2.2.0"
+nexttime = "2.2.1"
 
 [libraries]
 nexttime-android = { module = "com.github.kamiiroawase.nexttime:nexttime-android", version.ref = "nexttime" }
@@ -55,7 +55,7 @@ KMP 工程按目标源集各引变体。JitPack 上没有 common 元数据，`co
 ```kotlin
 kotlin {
     sourceSets {
-        androidMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-android:2.2.0") }
+        androidMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-android:2.2.1") }
         // jvmMain / iosArm64Main / iosSimulatorArm64Main / wasmJsMain 换对应变体
     }
 }
@@ -286,6 +286,7 @@ fun Countdown.zhText(): String {
 
 ## 版本历史
 
+- **2.2.1**（2026-10-03）：维护版本：双参 `countdown` 重载委托统一实现（对外行为不变，消除双实现漂移风险）；发布工作流在发布前执行测试；`calendarCountdown` 与其他时区 API 一致加载 IANA 时区库；构建链升级（Gradle 9.8.0、AGP 9.4.1、Kotlin 2.4.20、compileSdk 37）并跟踪 gradle-daemon-jvm.properties
 - **2.2.0**（2026-08-27）：重复单位新增小时/分钟（真实时长格点：出现 = 锚点 + 步数×间隔，跨日连续、跨夏令时本地钟面漂移，不受 9999 上界守护；天及以上仍为钟面格点）；修复天/周快路径在锚点距 now 超 292 年时因 Duration 纳秒饱和误抛越界异常
 - **2.1.0**（2026-08-26）：新增 `previousTarget` / `anchor` / `nextTarget(until)` / `countdown` 取整模式 / `calendarCountdown`（纯增量，无破坏性变更）
 - **2.0.0**（2026-08-26）：迁移 Kotlin Multiplatform（Android/JVM/iOS/wasmJs）；API 改用 `kotlin.time.Instant` 与 `kotlinx-datetime.TimeZone`，1.x 的 `ZonedDateTime` 调用方以 `instant.toLocalDateTime(zone)` 迁移；JitPack 坐标按平台拆分
