@@ -1,9 +1,17 @@
+# v* tag 推送时触发：把 KMP 模块构件签名发布到 Maven Central（Central Portal、
+# 自动 release），并重新发布到本地 Maven 仓库作为 GitHub Release 附件（aar/jar/klib
+# 加 pom/module/sources，Release 不存在则自动创建）；tag 带的 README 版本坐标没随
+# tag 更新时大声失败。完整构建门禁（编译、主机侧测试、格式检查）在发布之前于
+# tag 本身运行——tag 可能指向未经 Build 工作流验证的提交，而 Central 发布不可撤销。
+#
+# 所需仓库 secrets（Central Portal：https://central.sonatype.com）：
+#   ORG_GRADLE_PROJECT_mavenCentralUsername / …Password — Portal 用户令牌
+#   ORG_GRADLE_PROJECT_signingInMemoryKey — ASCII 甲胄私钥
+#     （gpg --export-secret-keys --armor …）
+#   ORG_GRADLE_PROJECT_signingInMemoryKeyId — 私钥 id
+#   ORG_GRADLE_PROJECT_signingInMemoryKeyPassword — 私钥口令
 name: Release
 
-# v* tag 推送时：发布产物（aar/jar/klib + pom/module/sources）作为 GitHub Release 附件；
-# Release 不存在则自动创建，已存在则补充附件。发布前跑全部主机侧测试
-# （JVM/Android/wasm）——tag 可能指向未经 Build 工作流验证的提交，测试失败即
-# 中止发布；iOS 模拟器测试仍由 Build 工作流的 macos job 覆盖
 on:
   push:
     tags: [ 'v*' ]
@@ -15,11 +23,29 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
+          # 完整克隆：版本由 v* tag 精确推导，浅克隆取不到 tag
           fetch-depth: 0
 
-      - uses: actions/setup-java@v4
+      # README 记录着发布坐标（引入章节的版本表与示例，共多处）：忘了 bump 就会把
+      # 旧版本号发给每一位读者，直到有人注意到。改为让发布失败：tag 版本必须在
+      # README 中出现。匹配用 token 锚定——固定字符串 grep 会命中子串
+      # （1.1.0 命中 11.1.0 或 1.1.0.1）。不做「上一版本必须消失」的反向断言：
+      # 版本历史一节按设计保留全部旧版本号，只有正向出现检查有区分度
+      - name: Check README version coordinates match the tag
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          test -n "$VERSION"
+          mentions_version() {
+            grep -Eq "(^|[^0-9.])${1//./\\.}([^0-9.]|$)" "$2"
+          }
+          mentions_version "$VERSION" README.md || {
+            echo "README.md does not mention version $VERSION — bump the documented coordinates"
+            exit 1
+          }
+
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
@@ -29,28 +55,54 @@ jobs:
             gradle/wrapper/gradle-wrapper.properties
             **/*.gradle.kts
 
-      - name: Run tests
-        run: chmod +x gradlew && ./gradlew allTests
+      # 与 Build 工作流在 main 上跑的同一道门禁：tag 可能指向从未经过 CI 的提交
+      # （比如从特性分支直接打 tag），而发布到 Central 不可撤销——发布前先验证
+      - name: Build and test
+        run: chmod +x gradlew && ./gradlew build
 
       - name: Publish to local Maven
         run: ./gradlew publishToMavenLocal
 
-      - name: Collect artifacts
+      # tag 检出恰好落在 v* tag 上，精确匹配推导必须产出恰为 tag 的版本——此处
+      # 出现 SNAPSHOT 意味着发布资产挂错坐标、所有文档化查询全部失效
+      - name: Verify published version equals the tag
         run: |
-          GROUP_DIR="$HOME/.m2/repository/com/github/kamiiroawase"
           VERSION="${GITHUB_REF_NAME#v}"
-          STAGE=release-assets
+          test -d "$HOME/.m2/repository/io/github/kamiiroawase/nexttime/$VERSION" || {
+            echo "expected published version $VERSION (exact-match tag derivation), found instead:"
+            ls "$HOME/.m2/repository/io/github/kamiiroawase/nexttime"
+            exit 1
+          }
+
+      # 真正的分发：构件签名上传 Central Portal 并自动发布。--no-configuration-cache
+      # 让发布任务避开任何第三方插件对配置缓存的边缘问题；发布不该败在这些上面
+      - name: Publish to Maven Central
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.ORG_GRADLE_PROJECT_mavenCentralUsername }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.ORG_GRADLE_PROJECT_mavenCentralPassword }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyId: ${{ secrets.ORG_GRADLE_PROJECT_signingInMemoryKeyId }}
+          ORG_GRADLE_PROJECT_signingInMemoryKeyPassword: ${{ secrets.ORG_GRADLE_PROJECT_signingInMemoryKeyPassword }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.ORG_GRADLE_PROJECT_signingInMemoryKey }}
+        run: ./gradlew publishToMavenCentral --no-configuration-cache
+
+      - name: Collect release assets
+        run: |
+          M2="$HOME/.m2/repository/io/github/kamiiroawase"
+          STAGE="release-assets"
           mkdir -p "$STAGE"
-          for mod in nexttime nexttime-android nexttime-jvm nexttime-iosarm64 nexttime-iossimulatorarm64 nexttime-wasm-js; do
-            MOD_DIR="$GROUP_DIR/$mod/$VERSION"
-            test -d "$MOD_DIR" || { echo "missing module dir: $MOD_DIR"; exit 1; }
-            find "$MOD_DIR" -maxdepth 1 -type f ! -name "maven-metadata-local.xml" -exec cp {} "$STAGE/" \;
+          for module in \
+            nexttime \
+            nexttime-android \
+            nexttime-jvm \
+            nexttime-iosarm64 \
+            nexttime-iossimulatorarm64 \
+            nexttime-wasm-js; do
+            find "$M2/$module" -type f ! -name 'maven-metadata-local.xml' -exec cp {} "$STAGE/" \;
           done
-          echo "Release artifacts:"
-          ls -l "$STAGE"
+          echo "Collected $(find "$STAGE" -type f | wc -l) files"
 
       - name: Upload to GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: release-assets/*
           generate_release_notes: true

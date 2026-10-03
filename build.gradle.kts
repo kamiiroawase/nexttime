@@ -7,19 +7,19 @@ plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.spotless)
-    `maven-publish`
+    alias(libs.plugins.maven.publish)
 }
 
-group = "com.github.kamiiroawase"
+group = "io.github.kamiiroawase"
 
-// 版本优先级：-Pversion（JitPack 打 tag 时传入，如 v1.1.0 → 1.1.0）＞ git tag 推导
-// （CI 需完整克隆 fetch-depth=0；HEAD 恰在 tag 上得到精确版本，之后沿用最近可达 tag）
-// ＞ 0.0.0-SNAPSHOT（无 tag 或无 git 环境）。
-// 不可硬编码版本号，否则会覆盖 JitPack 传入值造成 tag 与产物版本脱节
+// 版本唯一来源：HEAD 恰好落在 v* tag 上（CI 需完整克隆 fetch-depth=0；发布工作流
+// 的 tag 检出正是这个形态）＞ 0.0.0-SNAPSHOT（其余一切：HEAD 不在 tag 上、无 git 环境）。
+// 刻意不做「最近可达 tag」回退：tag 之后的提交沿用已发布版本号，会让本地
+// publishToMavenLocal 在同名坐标下遮蔽已发布构件。版本不可硬编码——tag 是发布
+// 号的唯一来源
 version =
     providers
-        .gradleProperty("version")
-        .orElse(providers.of(GitTagVersionSource::class.java) {})
+        .of(GitTagVersionSource::class.java) {}
         .orElse("0.0.0-SNAPSHOT")
         .get()
 
@@ -27,7 +27,7 @@ kotlin {
     // 目标平台与依赖 tyme4kt 的发布面对齐：Android / JVM / iOS（真机与模拟器）/ wasmJs；
     // Android 走 AGP 的 KMP 库插件（kotlin { android { } }，无顶层 android 块、无 androidTarget）
     android {
-        namespace = "com.github.kamiiroawase.nexttime"
+        namespace = "io.github.kamiiroawase.nexttime"
         compileSdk = 37
 
         // tyme4kt 的 android 门槛；common 代码不使用 java.time，不再要求 minSdk 26 / desugaring
@@ -59,7 +59,7 @@ kotlin {
     // 对外 API 必须显式声明可见性并附 KDoc，防误暴露
     explicitApi()
 
-    // 编译与测试固定跑在 JDK 21 上（与 CI、JitPack 一致），缺失时由 foojay 解析器自动获取
+    // 编译与测试固定跑在 JDK 21 上（与 CI 一致），缺失时由 foojay 解析器自动获取
     jvmToolchain(21)
 
     sourceSets {
@@ -100,53 +100,91 @@ spotless {
     }
 }
 
-publishing {
-    publications {
-        withType<MavenPublication>().configureEach {
-            pom {
-                name.set("nexttime")
-                description.set("Countdown target date calculation for solar and lunar calendars")
-                url.set("https://github.com/kamiiroawase/nexttime")
-                licenses {
-                    license {
-                        name.set("The Unlicense")
-                        url.set("https://unlicense.org")
-                    }
-                }
-                developers {
-                    developer {
-                        id.set("kamiiroawase")
-                        name.set("紅葉")
-                        url.set("https://github.com/kamiiroawase")
-                    }
-                }
-                scm {
-                    url.set("https://github.com/kamiiroawase/nexttime")
-                    connection.set("scm:git:git://github.com/kamiiroawase/nexttime.git")
-                    developerConnection.set("scm:git:ssh://git@github.com/kamiiroawase/nexttime.git")
-                }
+// 发布工作流以 ORG_GRADLE_PROJECT_signingInMemoryKey 传入 GPG 私钥，插件自行把它接入
+// Gradle 的 signing 扩展。此处守门两件事：空值视为未配置——publishToMavenLocal 无
+// 密钥也能跑（Build 工作流的发布校验依赖这一点）；非空值必须是完整的 ASCII 甲胄
+// 私钥，缺失/改名/拷坏的 secret 带着指引失败，而不是 Gradle 玄妙的
+// "Could not read PGP secret key"
+val signingKey =
+    providers
+        .gradleProperty("signingInMemoryKey")
+        .orNull
+        ?.replace("\r\n", "\n")
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+if (signingKey != null) {
+    require(
+        signingKey.startsWith("-----BEGIN PGP PRIVATE KEY BLOCK-----") &&
+            signingKey.endsWith("-----END PGP PRIVATE KEY BLOCK-----"),
+    ) {
+        "signingInMemoryKey is not a complete ASCII-armored PGP secret key (expected the " +
+            "-----BEGIN/END PGP PRIVATE KEY BLOCK----- lines). Re-export with " +
+            "'gpg --export-secret-keys --armor <key id>' and store the full output in the " +
+            "ORG_GRADLE_PROJECT_signingInMemoryKey secret — a partially copied key or one " +
+            "stored with literal \\n escapes fails to parse"
+    }
+}
+
+// vanniktech 插件走 Maven Central 发布：每个 KMP 目标的构件（含 KMP 消费方在
+// commonMain 引用的根 Gradle 模块构件）一次 publishToMavenCentral 完成签名并上传
+// Central Portal。发布工作流以环境变量映射的 gradle 属性提供凭据与 GPG 私钥
+// （ORG_GRADLE_PROJECT_mavenCentralUsername/Password、
+// ORG_GRADLE_PROJECT_signingInMemoryKey/KeyPassword）
+mavenPublishing {
+    // automaticRelease：上传后立即关闭并发布 staging 部署，绿色 tag 推送无需人工访问门户
+    publishToMavenCentral(automaticRelease = true)
+
+    if (signingKey != null) {
+        signAllPublications()
+    }
+
+    pom {
+        name.set("nexttime")
+        description.set("Countdown target date calculation for solar and lunar calendars")
+        url.set("https://github.com/kamiiroawase/nexttime")
+        licenses {
+            license {
+                name.set("The Unlicense")
+                url.set("https://unlicense.org")
             }
+        }
+        developers {
+            developer {
+                id.set("kamiiroawase")
+                name.set("紅葉")
+                url.set("https://github.com/kamiiroawase")
+            }
+        }
+        scm {
+            url.set("https://github.com/kamiiroawase/nexttime")
+            connection.set("scm:git:https://github.com/kamiiroawase/nexttime.git")
+            developerConnection.set("scm:git:git@github.com:kamiiroawase/nexttime.git")
         }
     }
 }
 
-// ValueSource 方式读取 git tag，对配置缓存安全（重用缓存时也会重新求值）
+// ValueSource 方式读取 git tag，对配置缓存安全（重用缓存时也会重新求值）；类体不
+// 引用脚本层成员，否则会成为非静态内部类
 abstract class GitTagVersionSource : ValueSource<String, ValueSourceParameters.None> {
-    override fun obtain(): String? =
-        git("describe", "--tags", "--abbrev=0", "--match=v*")
-            ?.removePrefix("v")
-            ?.ifEmpty { null }
-
-    private fun git(vararg args: String): String? =
-        try {
-            val process = ProcessBuilder("git", *args).redirectErrorStream(true).start()
-            process.inputStream
-                .bufferedReader()
-                .readText()
-                .trim()
-                .ifEmpty { null }
-                .takeIf { process.waitFor() == 0 }
-        } catch (_: Exception) {
-            null
-        }
+    override fun obtain(): String? {
+        val process =
+            try {
+                // --exact-match：HEAD 不恰在匹配 tag 上时 describe 以非零退出——
+                // 这正是发布形态的判定
+                ProcessBuilder("git", "describe", "--tags", "--exact-match", "--match=v*")
+                    .redirectErrorStream(true)
+                    .start()
+            } catch (_: Exception) {
+                return null
+            }
+        // 无 tag 时 git describe 非零退出且错误信息混入输出流——不能用作版本号
+        if (process.waitFor() != 0) return null
+        return process
+            .inputStream
+            .bufferedReader()
+            .readText()
+            .trim()
+            .removePrefix("v")
+            .ifEmpty { null }
+    }
 }

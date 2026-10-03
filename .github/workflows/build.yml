@@ -16,14 +16,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
-          # 完整克隆：git describe 需要可达 tag 的提交历史，浅克隆会取不到最近 tag
+          # 完整克隆：git describe 需要可达 tag，浅克隆取不到
           fetch-depth: 0
 
-      - uses: gradle/actions/wrapper-validation@v3
+      - uses: gradle/actions/wrapper-validation@v6
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
@@ -38,19 +38,21 @@ jobs:
       - name: Build, test and check format
         run: chmod +x gradlew && ./gradlew build
 
-      # JitPack 发版构建不跑测试（-xtest），发布链路只能在 CI 侧验证：
-      # 版本由 git tag 推导（依赖上方完整克隆），发布到本地 Maven 后断言 KMP 六模块
-      # （根 + android/jvm/iosArm64/iosSimulatorArm64/wasmJs）产物齐全、版本非 SNAPSHOT、
-      # pom 中含 tyme4kt 与 kotlinx-datetime 传递依赖
+      # Maven Central 发布本身只在 Release 工作流（tag 推送、带凭据）执行；发布链路
+      # 的 CI 覆盖在这里：发布到本地 Maven 后断言 KMP 六模块（根 +
+      # android/jvm/iosArm64/iosSimulatorArm64/wasmJs）产物齐全、pom 中含 tyme4kt 与
+      # kotlinx-datetime 传递依赖。版本是当前 HEAD 推导出的任意值——普通 main 推送
+      # 按设计就是 0.0.0-SNAPSHOT（HEAD 在 tag 之后，已发布号子永不沾染未发布提交），
+      # tag 版本只在 main HEAD 本身被打了 tag 时出现；精确 tag 推导的端到端守护在
+      # Release 工作流（检出 tag）里
       - name: Verify Maven publishing
         run: |
           ./gradlew publishToMavenLocal
-          GROUP_DIR="$HOME/.m2/repository/com/github/kamiiroawase"
+          GROUP_DIR="$HOME/.m2/repository/io/github/kamiiroawase"
           ROOT="$GROUP_DIR/nexttime"
           test "$(find "$ROOT" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1
           VERSION=$(find "$ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | head -n 1)
           test -n "$VERSION"
-          test "$VERSION" != "0.0.0-SNAPSHOT"
           A="$ROOT/$VERSION"
           for art in \
             "$A/nexttime-$VERSION.module" \
@@ -68,7 +70,7 @@ jobs:
 
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports
           path: |
@@ -80,9 +82,9 @@ jobs:
   ios-tests:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: 21
@@ -97,7 +99,7 @@ jobs:
 
       - name: Upload iOS test reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ios-test-reports
           path: |

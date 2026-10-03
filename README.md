@@ -17,48 +17,46 @@ Kotlin Multiplatform 库（commonMain 单一代码），目标平台：**Android
 
 ## 引入
 
+发布在 Maven Central（`io.github.kamiiroawase` 组下）：
+
 ```kotlin
 repositories {
-    maven("https://jitpack.io")
-    mavenCentral()   // 传递依赖 tyme4kt / kotlinx-datetime
+    mavenCentral()
+}
+
+dependencies {
+    implementation("io.github.kamiiroawase:nexttime:3.0.0")
 }
 ```
 
-**按平台引变体模块，不要用根坐标**：JitPack 把 KMP 模块发布在 `com.github.kamiiroawase.nexttime` 组下（组名带仓库名），根模块 `com.github.kamiiroawase:nexttime` 的 POM 连带声明全部平台变体（含 native klib），Android 工程直接依赖会报 `No matching variant`。
+需要钉住具体平台变体时（Maven 依赖、锁坐标等场景）：
 
 | 消费平台 | 坐标 |
 |---|---|
-| Android | `com.github.kamiiroawase.nexttime:nexttime-android:2.2.1` |
-| JVM | `com.github.kamiiroawase.nexttime:nexttime-jvm:2.2.1` |
-| iOS 真机（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iosarm64:2.2.1` |
-| iOS 模拟器（arm64） | `com.github.kamiiroawase.nexttime:nexttime-iossimulatorarm64:2.2.1` |
-| wasmJs | `com.github.kamiiroawase.nexttime:nexttime-wasm-js:2.2.1` |
+| Android | `io.github.kamiiroawase:nexttime-android:3.0.0` |
+| JVM | `io.github.kamiiroawase:nexttime-jvm:3.0.0` |
+| iOS 真机（arm64） | `io.github.kamiiroawase:nexttime-iosarm64:3.0.0` |
+| iOS 模拟器（arm64） | `io.github.kamiiroawase:nexttime-iossimulatorarm64:3.0.0` |
+| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:3.0.0` |
 
-单平台工程（版本目录写法，JVM 工程换 `nexttime-jvm`）：
-
-```toml
-[versions]
-nexttime = "2.2.1"
-
-[libraries]
-nexttime-android = { module = "com.github.kamiiroawase.nexttime:nexttime-android", version.ref = "nexttime" }
-```
-
-```kotlin
-dependencies {
-    implementation(libs.nexttime.android)
-}
-```
-
-KMP 工程按目标源集各引变体。JitPack 上没有 common 元数据，`commonMain` 无法直接引用本库 API；需要在共享代码中调用时，用 GitHub Release 附件自建 Maven 仓库（附件为发布产物原件、原始组 `com.github.kamiiroawase`，根模块元数据完整），或在 `commonMain` 定义自有接口、平台源集引变体实现：
+KMP 消费方在 commonMain 引用根坐标即可：
 
 ```kotlin
 kotlin {
     sourceSets {
-        androidMain.dependencies { implementation("com.github.kamiiroawase.nexttime:nexttime-android:2.2.1") }
-        // jvmMain / iosArm64Main / iosSimulatorArm64Main / wasmJsMain 换对应变体
+        commonMain.dependencies { implementation("io.github.kamiiroawase:nexttime:3.0.0") }
     }
 }
+```
+
+版本目录写法：
+
+```toml
+[versions]
+nexttime = "3.0.0"
+
+[libraries]
+nexttime = { module = "io.github.kamiiroawase:nexttime", version.ref = "nexttime" }
 ```
 
 tyme4kt 与 kotlinx-datetime 以传递依赖自动引入（tyme4kt 的 `com.tyme.*` API 亦可直接使用）；wasmJs 平台的 IANA 时区库已内嵌并随 klib 传递，消费方零配置。
@@ -66,9 +64,9 @@ tyme4kt 与 kotlinx-datetime 以传递依赖自动引入（tyme4kt 的 `com.tyme
 ## 快速上手
 
 ```kotlin
-import com.github.kamiiroawase.nexttime.Schedule
-import com.github.kamiiroawase.nexttime.countdown
-import com.github.kamiiroawase.nexttime.nextTarget
+import io.github.kamiiroawase.nexttime.Schedule
+import io.github.kamiiroawase.nexttime.countdown
+import io.github.kamiiroawase.nexttime.nextTarget
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -277,7 +275,7 @@ fun Countdown.zhText(): String {
 - **`countdown()` 只有单一量级**：没有周单位，也没有时分混合的复合细分（如「3天4小时」；钟面年月日时分秒复合细分用 `calendarCountdown()`）
 - **两套重复语义按单位分界**（ISO 8601 惯例）：天及以上为钟面格点（跨夏令时每天出现在同一本地时刻），小时/分钟为真实时长格点（间隔不变、本地钟面跨夏令时漂移 1 小时，且不受 0001..9999 上界守护、不抛越界异常）
 - **iOS 无 x64 模拟器目标**（对齐 tyme4kt 发布面，仅 arm64 真机与模拟器）；Android minSdk 24+、JVM 11+，无需 desugaring
-- **JitPack 按平台引变体**，根坐标不可用（见[引入](#引入)）
+- **2.x → 3.0 迁移**：坐标从 JitPack 的 `com.github.kamiiroawase.nexttime:nexttime-*` 迁到 Maven Central 的 `io.github.kamiiroawase:nexttime*`，包名同步从 `com.github.kamiiroawase.nexttime` 改为 `io.github.kamiiroawase.nexttime`（import 全量替换即可）；JitPack 上的 2.x 旧版本冻结不再维护
 
 ## 测试
 
@@ -289,6 +287,7 @@ fun Countdown.zhText(): String {
 
 ## 版本历史
 
+- **3.0.0**（2026-10-03）：破坏性版本：发布渠道从 JitPack 迁到 Maven Central（组 `io.github.kamiiroawase`，根坐标可在 commonMain 直接引用），包名与 Android namespace 同步改为 `io.github.kamiiroawase.nexttime`；`Schedule` 构造期拒绝时分秒部分选择（此前静默按零点吞掉已选字段，须全选或全不选，要整点显式写全三个字段）；版本推导改为精确 tag 匹配（tag 之后的提交一律 0.0.0-SNAPSHOT，已发布号子不再沾染未发布提交）；Gradle 守护进程 JDK 与编译/测试工具链统一 21
 - **2.2.1**（2026-10-03）：维护版本：双参 `countdown` 重载委托统一实现（对外行为不变，消除双实现漂移风险）；发布工作流在发布前执行测试；`calendarCountdown` 与其他时区 API 一致加载 IANA 时区库；构建链升级（Gradle 9.8.0、AGP 9.4.1、Kotlin 2.4.20、compileSdk 37）并跟踪 gradle-daemon-jvm.properties
 - **2.2.0**（2026-08-27）：重复单位新增小时/分钟（真实时长格点：出现 = 锚点 + 步数×间隔，跨日连续、跨夏令时本地钟面漂移，不受 9999 上界守护；天及以上仍为钟面格点）；修复天/周快路径在锚点距 now 超 292 年时因 Duration 纳秒饱和误抛越界异常
 - **2.1.0**（2026-08-26）：新增 `previousTarget` / `anchor` / `nextTarget(until)` / `countdown` 取整模式 / `calendarCountdown`（纯增量，无破坏性变更）
