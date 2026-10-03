@@ -1,8 +1,8 @@
 [versions]
-agp = "9.3.2"
-kotlin = "2.4.10"
+agp = "9.4.1"
+kotlin = "2.4.20"
 kotlinx-datetime = "0.8.0"
-spotless = "8.10.0"
+spotless = "8.10.3"
 tyme4kt = "1.5.0"
 
 [libraries]

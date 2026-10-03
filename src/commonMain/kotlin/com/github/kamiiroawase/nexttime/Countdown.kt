@@ -162,7 +162,7 @@ public fun calendarCountdown(
         past = past,
         years = period.years,
         months = period.months,
-        days = period.days ?: 0,
+        days = period.days,
         hours = period.hours,
         minutes = period.minutes,
         seconds = period.seconds,

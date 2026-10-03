@@ -5,5 +5,3 @@ local.properties
 .idea/
 .DS_Store
 build/
-gradle/gradle-daemon-jvm.properties
-.zcode/

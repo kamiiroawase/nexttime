@@ -28,7 +28,7 @@ kotlin {
     // Android 走 AGP 的 KMP 库插件（kotlin { android { } }，无顶层 android 块、无 androidTarget）
     android {
         namespace = "com.github.kamiiroawase.nexttime"
-        compileSdk = 36
+        compileSdk = 37
 
         // tyme4kt 的 android 门槛；common 代码不使用 java.time，不再要求 minSdk 26 / desugaring
         minSdk = 24
