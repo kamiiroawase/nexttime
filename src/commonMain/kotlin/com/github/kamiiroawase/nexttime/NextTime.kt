@@ -51,7 +51,7 @@ private fun compose(
     zone: TimeZone,
 ): Instant = LocalDateTime(date, time).toInstant(zone)
 
-/** 时分秒全选取目标时刻，任一未选整体按 00:00:00（已选字段静默丢弃） */
+/** 时分秒全选取目标时刻，全未选整体按 00:00:00（部分选择已在构造期拒绝） */
 private fun Schedule.resolveTime(): LocalTime =
     if (targetHour >= 0 && targetMinute >= 0 && targetSecond >= 0) {
         LocalTime(targetHour, targetMinute, targetSecond)
@@ -69,7 +69,7 @@ private fun capped(
 ): Instant? = if (until != null && target > until) null else target
 
 /**
- * 日程锚点：targetDay 的 UTC 日期 + 目标时分秒（未选按 00:00:00）组合到 [zone]
+ * 日程锚点：targetDay 的 UTC 日期 + 目标时分秒（全未选按 00:00:00）组合到 [zone]
  * 的时刻，即出现序列的第一次出现。锚点日目标时刻落在夏令时缺口时按缺口顺延
  * （如 02:30 → 03:30），因此结果等于「第一次出现」而非朴素组合——
  * nextTarget(锚点前一瞬) 恰为本值。targetDay 未选返回 null。

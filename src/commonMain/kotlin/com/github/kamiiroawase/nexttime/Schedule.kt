@@ -26,14 +26,14 @@ private val MAX_TARGET_DAY_MILLIS =
  * 构造时校验全部字段，非法取值抛 [IllegalArgumentException]：
  * [targetDay] 仅允许 -1（未选）或能解析到 0001-01-01..9999-12-31（UTC 日期）
  * 的毫秒值——0 表示 1970-01-01 当天、负毫秒表示 1970 年之前，均合法；时分秒
- * 仅允许 -1（未选）或各自合法区间（-1 以外没有「未选」语义，如 0 与负数都会
- * 被拒绝）；[repeatInterval] 须在 0..[MAX_REPEAT_INTERVAL]；[repeatUnit] 须为
- * [RepeatUnit] 常量之一。
+ * 仅允许 -1（未选）或各自合法区间，且须**全选或全不选**——部分选择（如只设
+ * 时）曾静默按零点吞掉已选字段，现构造期拒绝；[repeatInterval] 须在
+ * 0..[MAX_REPEAT_INTERVAL]；[repeatUnit] 须为 [RepeatUnit] 常量之一。
  *
  * @param lunar 目标日按农历解释：月/年重复沿农历推进，天/周/小时/分钟重复与公历无异
  * @param leapCount 农历时闰月是否参与重复推算
  * @param targetDay 目标日 UTC 毫秒值，-1 表示未选；支持 0001-01-01 至 9999-12-31 的日期（1970 年前为负毫秒）
- * @param targetHour 目标时，-1 表示未选（时分秒任一未选按当天零点）
+ * @param targetHour 目标时，-1 表示未选；三个时刻字段须全选或全不选（全不选整体按当天零点，部分选择构造期抛异常）
  * @param targetMinute 目标分，-1 表示未选
  * @param targetSecond 目标秒，-1 表示未选
  * @param repeatInterval 重复间隔，0 表示不重复
@@ -56,6 +56,12 @@ public data class Schedule(
         require(targetHour in -1..23) { "targetHour must be in 0..23 or -1 for unset, got: $targetHour" }
         require(targetMinute in -1..59) { "targetMinute must be in 0..59 or -1 for unset, got: $targetMinute" }
         require(targetSecond in -1..59) { "targetSecond must be in 0..59 or -1 for unset, got: $targetSecond" }
+        // 全选或全不选：部分选择（如只设时）曾静默按零点吞掉已选字段，改为构造期快速失败
+        val timeFields = listOf(targetHour, targetMinute, targetSecond)
+        require(timeFields.all { it == -1 } || timeFields.all { it >= 0 }) {
+            "targetHour/targetMinute/targetSecond must be all set or all unset (-1); " +
+                "set the missing ones to 0 explicitly, got: $targetHour/$targetMinute/$targetSecond"
+        }
         require(repeatInterval in 0..MAX_REPEAT_INTERVAL) { "repeatInterval must be in 0..$MAX_REPEAT_INTERVAL, got: $repeatInterval" }
         require(repeatUnit in RepeatUnit.NONE..RepeatUnit.MINUTE) { "repeatUnit must be a RepeatUnit constant, got: $repeatUnit" }
     }

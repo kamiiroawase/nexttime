@@ -113,6 +113,18 @@ publishing {
                         url.set("https://unlicense.org")
                     }
                 }
+                developers {
+                    developer {
+                        id.set("kamiiroawase")
+                        name.set("紅葉")
+                        url.set("https://github.com/kamiiroawase")
+                    }
+                }
+                scm {
+                    url.set("https://github.com/kamiiroawase/nexttime")
+                    connection.set("scm:git:git://github.com/kamiiroawase/nexttime.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/kamiiroawase/nexttime.git")
+                }
             }
         }
     }

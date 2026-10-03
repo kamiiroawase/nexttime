@@ -77,9 +77,12 @@ import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 
 // 单次日程：2026-10-01 10:00:00（上海时区）
+// 时分秒要么全选、要么全不选：部分选择（如只设 targetHour）构造时抛异常
 val schedule = Schedule(
     targetDay = LocalDate(2026, 10, 1).atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds(),
     targetHour = 10,
+    targetMinute = 0,
+    targetSecond = 0,
 )
 
 val zone = TimeZone.of("Asia/Shanghai")
@@ -97,7 +100,7 @@ val state = countdown(next, now)              // Countdown(past = false, value =
 // 公历每年重复：周年纪念日
 Schedule(
     targetDay = utcMillis(LocalDate(2020, 6, 15)),
-    targetHour = 9,
+    targetHour = 9, targetMinute = 0, targetSecond = 0,
     repeatInterval = 1,
     repeatUnit = RepeatUnit.YEAR
 )
@@ -113,7 +116,7 @@ Schedule(
 Schedule(
     lunar = true,
     targetDay = utcMillis(LocalDate(2026, 9, 20)),  // 锚点公历日期
-    targetHour = 8,
+    targetHour = 8, targetMinute = 0, targetSecond = 0,
     repeatInterval = 1,
     repeatUnit = RepeatUnit.YEAR
 )
@@ -129,7 +132,7 @@ Schedule(
 // 纯间隔重复：每 8 小时（真实时长，跨日连续、跨夏令时间隔不变）
 Schedule(
     targetDay = utcMillis(LocalDate(2026, 8, 26)),
-    targetHour = 8,
+    targetHour = 8, targetMinute = 0, targetSecond = 0,
     repeatInterval = 8,
     repeatUnit = RepeatUnit.HOUR
 )
@@ -152,7 +155,7 @@ schedule.anchor(zone)                 // 第一次出现
 | `lunar` | Boolean | false | 目标日按农历解释，月/年重复沿农历推进（天/周/小时/分钟重复与公历无异） |
 | `leapCount` | Boolean | false | 农历时闰月是否参与重复推算，详见[农历重复语义](#农历重复语义) |
 | `targetDay` | Long | -1 | 目标日 UTC 毫秒值，-1 表示未选（推算函数返回 null） |
-| `targetHour` | Int | -1 | 目标时，-1 表示未选 |
+| `targetHour` | Int | -1 | 目标时，-1 表示未选；**三个时刻字段要么全选、要么全不选**，部分选择构造时抛 `IllegalArgumentException` |
 | `targetMinute` | Int | -1 | 目标分，-1 表示未选 |
 | `targetSecond` | Int | -1 | 目标秒，-1 表示未选 |
 | `repeatInterval` | Int | 0 | 重复间隔（0..100000），0 视为不重复 |
@@ -192,7 +195,7 @@ fun Schedule.anchor(zone: TimeZone = TimeZone.currentSystemDefault()): Instant?
 | `until` 上限 | 重复出现晚于 `until` 时返回 null（序列单调，后续必然超限）；**锚点与非重复日程不受约束**——重复结束不能追溯取消锚点 |
 | 重复反向 | 不晚于 `before` 的最近一次出现（含恰等于）；`before` 早于锚点返回 null |
 | 推算越过 0001..9999 | 抛 `IllegalStateException`，不会死循环；`previousTarget` 例外：返回界内最后一次出现 |
-| 时分秒任一未选 | 按 00:00:00 组合 |
+| 时分秒全未选 | 按 00:00:00 组合（部分选择已在构造期拒绝，要整点须显式写全三个字段） |
 | 农历 + 天/周重复 | 与公历相同 |
 | 小时/分钟重复 | **真实时长格点**：出现 = 锚点 + 步数×间隔，跨日连续；`lunar` 无关；**不受 0001..9999 上界守护**（Instant 值域内任意推进） |
 | 月/年重复遇短月/平年 | 收缩到当月最接近锚点日的一天，后续回弹（1/31 → 2/28 → 3/31；2/29 → 平年 2/28 → 闰年 2/29） |
@@ -268,7 +271,7 @@ fun Countdown.zhText(): String {
 ## 已知限制与常见坑
 
 - **`targetDay` 只取 UTC 日期**，支持范围 0001-01-01..9999-12-31；`-1` 是「未选」哨兵，0 与负毫秒（1970-01-01 及更早）是合法日期
-- **时分秒「要么全选、要么全不选」**：任一字段为 -1 时整体按 00:00:00 组合——`targetHour = 8` 而 `targetMinute = -1` 得到的是零点，不是 08:00
+- **时分秒「要么全选、要么全不选」**：部分选择（如只设 `targetHour = 8`）在构造时抛 `IllegalArgumentException`，不会静默按零点；要 8 点整须显式写 `targetMinute = 0, targetSecond = 0`，全不选则整体按 00:00:00 组合
 - **`nextTarget(now, zone)` 成对传**：传入非默认时区的 `now` 时务必同传 `zone`，否则日期按系统时区组合、时刻与 `now` 比较，语义静默分裂
 - **不重复日程不推进**：目标已过仍原样返回过去时刻，`countdown()` 会如实报告「已过」；需要自动推进请配置重复规则
 - **`countdown()` 只有单一量级**：没有周单位，也没有时分混合的复合细分（如「3天4小时」；钟面年月日时分秒复合细分用 `calendarCountdown()`）

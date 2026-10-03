@@ -49,13 +49,18 @@ class NextTargetTest {
     }
 
     @Test
-    fun `时分秒任一未选整体按零点`() {
-        // 时选了分未选、分选了时未选，都整体按零点，不取部分时刻
-        val hourOnly = schedule(utcMillis(LocalDate(2026, 8, 24)), hour = 8, minute = -1, second = -1)
-        val minuteOnly = schedule(utcMillis(LocalDate(2026, 8, 24)), hour = -1, minute = 30, second = 0)
-
-        assertEquals(LocalTime(0, 0), timeOf(hourOnly.nextTarget(zdt(2026, 8, 23), shanghai)!!, shanghai))
-        assertEquals(LocalTime(0, 0), timeOf(minuteOnly.nextTarget(zdt(2026, 8, 23), shanghai)!!, shanghai))
+    fun `时分秒部分选择构造期拒绝`() {
+        // 曾静默按零点吞掉已选字段（targetHour = 8 得零点而非 08:00），现改为快速失败；
+        // 要 8 点整须显式写全 hour = 8, minute = 0, second = 0
+        assertFailsWith<IllegalArgumentException> {
+            schedule(utcMillis(LocalDate(2026, 8, 24)), hour = 8, minute = -1, second = -1)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            schedule(utcMillis(LocalDate(2026, 8, 24)), hour = -1, minute = 30, second = 0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            schedule(utcMillis(LocalDate(2026, 8, 24)), hour = -1, minute = -1, second = 30)
+        }
     }
 
     @Test
@@ -334,6 +339,10 @@ class NextTargetTest {
         assertFailsWith<IllegalArgumentException> { Schedule(targetMinute = 60) }
         assertFailsWith<IllegalArgumentException> { Schedule(targetSecond = 60) }
         assertFailsWith<IllegalArgumentException> { Schedule(targetHour = -5) }
+        // 时分秒部分选择：只设其一或其二都拒绝（README 快速上手的 targetHour = 10 即此类）
+        assertFailsWith<IllegalArgumentException> { Schedule(targetHour = 10) }
+        assertFailsWith<IllegalArgumentException> { Schedule(targetMinute = 30) }
+        assertFailsWith<IllegalArgumentException> { Schedule(targetHour = 10, targetMinute = 0) }
         assertFailsWith<IllegalArgumentException> { Schedule(targetDay = utcMillis(LocalDate(0, 1, 1))) }
         // 10000-01-01 零点毫秒（LocalDate 年份上限 9999，无法直接构造该日期）
         assertFailsWith<IllegalArgumentException> {
