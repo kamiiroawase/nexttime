@@ -11,6 +11,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.Instant
 
 /** 小时/分钟重复：真实时长格点、DST 漂移、长跨度 epoch 秒运算与入参校验 */
 @Suppress("NonAsciiCharacters", "RemoveRedundantBackticks")
@@ -107,6 +108,22 @@ class HourMinuteTest {
         assertTrue(previous <= now)
         assertTrue(now - previous < 1.minutes)
         assertEquals(0L, (previous.epochSeconds - anchorSeconds) % 60)
+    }
+
+    @Test
+    fun `小时重复不做界内完结判定`() {
+        // 小时/分钟为真实时长格点，不做「带 until 且 now 越过界内最后出现 → null」
+        // 的完结判定：now 与 until 都越过 9999 界时照常按格点推进返回真实出现
+        // （锚点 2026-08-26T08:00 上海 = UTC 零点，8 小时格点因此整日对齐）
+        val schedule =
+            schedule(utcMillis(LocalDate(2026, 8, 26)), hour = 8, interval = 8, unit = RepeatUnit.HOUR)
+
+        val now = Instant.parse("+12000-01-01T01:00:00Z")
+
+        assertEquals(
+            Instant.parse("+12000-01-01T08:00:00Z"),
+            schedule.nextTarget(now, shanghai, now + 16.hours),
+        )
     }
 
     @Test

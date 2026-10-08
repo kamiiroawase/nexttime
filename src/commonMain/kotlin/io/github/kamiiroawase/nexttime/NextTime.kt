@@ -15,6 +15,7 @@ import kotlinx.datetime.toInstant
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.datetime.until
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 
 /**
@@ -94,8 +95,11 @@ public fun Schedule.anchor(zone: TimeZone = TimeZone.currentSystemDefault()): In
  * 与农历路径一致。
  *
  * 推算年份（公历与农历）越过支持范围 0001..9999 时抛 [IllegalStateException]，
- * 不会死循环；锚点日期范围已在构造期校验。until 早于 now 的完结判定先行
- * 返回 null，不触发越界异常。
+ * 不会死循环；锚点日期范围已在构造期校验。带 until 的完结判定先行返回 null、
+ * 不触发越界异常：until 早于 now，或 now 晚于界内最后一个可能出现（9999-12-31
+ * 末秒组合加时区不连续余量）——此时任何不早于 now 的出现必然界外，界内不可
+ * 再有满足 [now, until] 的出现；不带 until 的同一查询越界仍抛异常（答案
+ * 不可表示）。
  *
  * 小时/分钟重复按**真实时长格点**（出现 = 锚点 + 步数×间隔，ISO 8601 的
  * time-based 惯例）：不经「日期 + 时刻 + 时区」组合，跨夏令时出现时刻的本地
@@ -106,7 +110,10 @@ public fun Schedule.anchor(zone: TimeZone = TimeZone.currentSystemDefault()): In
  * @param until 重复推进的可选上限：出现晚于 until 时返回 null（出现序列单调，
  * 后续必然全部超限，重复已完结）。仅约束重复推进——非重复日程与锚点本身
  * （尚在未来、原样返回的路径）不受 until 影响，重复结束不能追溯取消锚点；
- * until 早于 now 时任何不早于 now 的出现必然超限，直接返回 null
+ * until 早于 now 时任何不早于 now 的出现必然超限，直接返回 null；now 晚于
+ * 界内最后一个可能出现（9999-12-31 末秒组合加时区不连续余量）时同理——
+ * 界内不可能再有满足 [now, until] 的出现，直接返回 null（不带 until 的同一
+ * 查询越界仍抛异常，答案不可表示）
  */
 public fun Schedule.nextTarget(
     now: Instant = Clock.System.now(),
@@ -152,6 +159,17 @@ public fun Schedule.nextTarget(
             step++
         }
     }
+
+    // 带 until 的完结判定，与上方「until 早于 now」的方向对偶：now 晚于界内最后
+    // 一个可能出现——9999-12-31 末秒的组合结果加时区不连续余量（缺口顺延至多把
+    // 末出现推后约 26 小时，48 小时冗余覆盖，见 ZONE_DISCONTINUITY_SLACK_SECONDS）
+    // ——时，任何不早于 now 的出现必然在支持范围外，[now, until] 内不可能再有
+    // 界内出现，重复已完结，直接返回 null 而非撞范围守护。仅限带 until 的有界
+    // 查询：不带 until 的越界查询答案不可表示，仍按契约抛 IllegalStateException；
+    // 小时/分钟为真实时长格点，已在上方分支返回，不受此限
+    val lastPossibleOccurrence =
+        compose(MAX_SUPPORTED_DATE, LocalTime(23, 59, 59), zone) + ZONE_DISCONTINUITY_SLACK_SECONDS.seconds
+    if (until != null && now > lastPossibleOccurrence) return null
 
     if (!lunar || repeatUnit == RepeatUnit.DAY || repeatUnit == RepeatUnit.WEEK) {
         if (repeatUnit == RepeatUnit.DAY || repeatUnit == RepeatUnit.WEEK) {

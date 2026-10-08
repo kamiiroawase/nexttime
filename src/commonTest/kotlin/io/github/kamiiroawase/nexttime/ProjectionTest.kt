@@ -113,6 +113,52 @@ class ProjectionTest {
     }
 
     @Test
+    fun `now越过界内最后出现而until更晚同样完结`() {
+        // 与「until 早于 now」对偶的完结方向：now 与 until 都越过 9999 界时，
+        // 任何不早于 now 的出现必然界外，[now, until] 内不可能再有界内出现——
+        // 返回 null；修复前会先撞范围守护抛 IllegalStateException。now 须越过
+        // 9999-12-31 末秒组合 + 48 小时余量（+10000-01-01 尚在余量内，不触发）
+        val schedule =
+            schedule(utcMillis(LocalDate(2020, 1, 1)), interval = 1, unit = 1)
+
+        assertNull(
+            schedule.nextTarget(
+                Instant.parse("+12000-01-01T00:00:00Z"),
+                shanghai,
+                Instant.parse("+15000-01-01T00:00:00Z"),
+            ),
+        )
+        assertNull(
+            schedule.nextTarget(
+                Instant.parse("+12000-01-01T00:00:00Z"),
+                newYork,
+                Instant.parse("+15000-01-01T00:00:00Z"),
+            ),
+        )
+    }
+
+    @Test
+    fun `农历重复now越过界内最后出现同样完结`() {
+        // 农历路径同语义：now 越过界内最后可能出现（农历 9999 年末月的最晚公历
+        // 落点 + 余量）时完结返回 null，不撞农历年表越界守护
+        val schedule =
+            schedule(
+                solarMillis(LunarDay.fromYmd(2020, 1, 1).getSolarDay()),
+                lunar = true,
+                interval = 1,
+                unit = 4,
+            )
+
+        assertNull(
+            schedule.nextTarget(
+                Instant.parse("+12000-01-01T00:00:00Z"),
+                shanghai,
+                Instant.parse("+15000-01-01T00:00:00Z"),
+            ),
+        )
+    }
+
+    @Test
     fun `农历重复封顶返回 null 且锚点豁免`() {
         val schedule =
             schedule(
