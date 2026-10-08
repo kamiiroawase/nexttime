@@ -23,6 +23,13 @@ on:
 permissions:
   contents: write
 
+# 与 Build 工作流同构的并发组，但绝不取消进行中的运行：发布到 Central 不可撤销，
+# 中途杀掉会留下半成品状态（未完成的 Central 部署、残缺的 GitHub Release 附件）；
+# 同一 tag 删除重推的极端场景下，后一次发布排队等待而非并发执行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
