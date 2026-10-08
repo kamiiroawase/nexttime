@@ -142,9 +142,10 @@ public fun Schedule.nextTarget(
     if (until != null && until < now) return null
 
     if (repeatUnit == RepeatUnit.HOUR || repeatUnit == RepeatUnit.MINUTE) {
-        // 真实时长格点：出现 = 锚点 + 步数×周期秒。epoch 秒运算（而非 Duration）：
-        // 两千年级跨度的纳秒差会饱和 Long（约 292 年上限）。秒差向下取整后真实
-        // 步数至多多一步，小步前推兜住亚秒分量
+        // 真实时长格点：出现 = 锚点 + 步数×周期秒。epoch 秒整型运算而非 Duration：
+        // Duration 表示分档（约 292 年内纳秒精度、更长降为毫秒，纳秒分量超档
+        // 即饱和失真），整型直算绕开这些表示细节。秒差向下取整后真实步数至多
+        // 多一步，小步前推兜住亚秒分量
         val periodSeconds =
             if (repeatUnit == RepeatUnit.HOUR) {
                 repeatInterval * 3600L
@@ -183,7 +184,8 @@ public fun Schedule.nextTarget(
                 } else {
                     repeatInterval * 7L
                 }
-            // epoch 秒差而非 Duration：两千年级跨度的纳秒差会饱和 Long（约 292 年上限）
+            // epoch 秒差而非 Duration：Duration 表示分档（约 292 年内纳秒、更长
+            // 降为毫秒），整型直算不涉档位与分量换算
             var step =
                 maxOf(
                     1L,
@@ -287,7 +289,8 @@ public fun Schedule.previousTarget(
                 } else {
                     repeatInterval * 7L
                 }
-            // epoch 秒差而非 Duration：两千年级跨度的纳秒差会饱和 Long（约 292 年上限）
+            // epoch 秒差而非 Duration：Duration 表示分档（约 292 年内纳秒、更长
+            // 降为毫秒），整型直算不涉档位与分量换算
             val estimate =
                 maxOf(
                     0L,

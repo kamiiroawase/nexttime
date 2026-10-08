@@ -175,7 +175,7 @@ anniversary.anchor(zone)                 // 第一次出现
 | `targetMinute` | Int | -1 | 目标分，-1 表示未选 |
 | `targetSecond` | Int | -1 | 目标秒，-1 表示未选 |
 | `repeatInterval` | Int | 0 | 重复间隔（0..100000），0 视为不重复 |
-| `repeatUnit` | Int | RepeatUnit.NONE | 重复单位，取 `RepeatUnit.NONE/DAY/WEEK/MONTH/YEAR/HOUR/MINUTE` |
+| `repeatUnit` | Int | RepeatUnit.NONE | 重复单位，取 `RepeatUnit.NONE/DAY/WEEK/MONTH/YEAR/HOUR/MINUTE`；`NONE` 时无论间隔为何均按不重复处理（间隔被忽略，与 `repeatInterval = 0` 同效） |
 
 关于 `targetDay`：
 
@@ -206,7 +206,7 @@ fun Schedule.anchor(zone: TimeZone = TimeZone.currentSystemDefault()): Instant?
 | 场景 | 行为 |
 |---|---|
 | `targetDay == -1`（未选） | 三个函数都返回 null |
-| 不重复 | 返回目标日组合时刻，**已过也原样返回过去时刻**，不推进 |
+| 不重复（`repeatInterval = 0` 或 `repeatUnit = NONE`，任一即视为不重复） | 返回目标日组合时刻，**已过也原样返回过去时刻**，不推进 |
 | 重复正向 | 从锚点按周期推进到不早于 `now`；恰好等于 `now` 时不再推进 |
 | `until` 上限 | 重复出现晚于 `until` 时返回 null（序列单调，后续必然超限）；**锚点与非重复日程不受约束**——重复结束不能追溯取消锚点；`until` 早于 `now` 时直接返回 null，不为凑结论抛越界异常；带 `until` 且 `now` 晚于界内最后一个可能出现（9999-12-31 末秒组合加时区不连续余量）时同样直接返回 null——任何不早于 `now` 的出现必然界外，`[now, until]` 内不可能再有界内出现 |
 | 重复反向 | 不晚于 `before` 的最近一次出现（含恰等于）；`before` 早于锚点返回 null |
@@ -294,7 +294,7 @@ fun Countdown.zhText(): String {
 - **`countdown()` 只有单一量级**：没有周单位，也没有时分混合的复合细分（如「3天4小时」；钟面年月日时分秒复合细分用 `calendarCountdown()`）
 - **两套重复语义按单位分界**（ISO 8601 惯例）：天及以上为钟面格点（跨夏令时每天出现在同一本地时刻），小时/分钟为真实时长格点（间隔不变、本地钟面跨夏令时漂移 1 小时，且不受 0001..9999 上界守护、不抛越界异常）
 - **iOS 无 x64 模拟器目标**（对齐 tyme4kt 发布面，仅 arm64 真机与模拟器）；Android minSdk 24+、JVM 11+，无需 desugaring
-- **iOS 真机目标不执行测试**：macOS CI 只跑模拟器目标（`iosSimulatorArm64Test`），真机目标（`iosArm64`）仅交叉编译验证——两者运行的是同一份 commonTest 代码
+- **iOS 真机目标不执行测试**：Build 与 Release 工作流的 macOS job 均只跑模拟器目标（`iosSimulatorArm64Test`；Linux 上 iOS 测试无法运行，Release 的发布步骤以其通过为先决），真机目标（`iosArm64`）仅交叉编译验证——两者运行的是同一份 commonTest 代码
 - **2.x → 3.0 迁移**：坐标从 JitPack 的 `com.github.kamiiroawase.nexttime:nexttime-*` 迁到 Maven Central 的 `io.github.kamiiroawase:nexttime*`，包名同步从 `com.github.kamiiroawase.nexttime` 改为 `io.github.kamiiroawase.nexttime`（import 全量替换即可）；JitPack 上的 2.x 旧版本冻结不再维护
 
 ## 测试

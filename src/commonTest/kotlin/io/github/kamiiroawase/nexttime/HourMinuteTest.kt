@@ -89,10 +89,10 @@ class HourMinuteTest {
 
     @Test
     fun `长跨度分钟格点不溢出`() {
-        // 0001-01-01 锚点每 1 分钟推到 2026 年：约两千年的纳秒差（约 6.4e19）远超
-        // Duration 的 Long 表示（约 292 年即饱和）——epoch 秒运算不受影响。
-        // 格点参照取 anchor(zone)：远古年份的 LMT 偏移带秒级分量（上海 +08:05:43），
-        // 格点锚在组合时刻而非 UTC 零点
+        // 0001-01-01 锚点每 1 分钟推到 2026 年：约两千年的跨度已越过 Duration 的
+        // 纳秒精度档（约 292 年为界，更长降为毫秒、值不饱和）——epoch 秒整型
+        // 运算不受档位影响。格点参照取 anchor(zone)：远古年份的 LMT 偏移带秒级
+        // 分量（上海 +08:05:43），格点锚在组合时刻而非 UTC 零点
         val schedule =
             schedule(utcMillis(LocalDate(1, 1, 1)), interval = 1, unit = RepeatUnit.MINUTE)
 
@@ -142,7 +142,8 @@ class HourMinuteTest {
 
     @Test
     fun `远古锚点周重复跨饱和界`() {
-        // 1500 年锚点距 now 超 500 年（Duration 纳秒饱和区）：epoch 秒差修复后正常落位。
+        // 1500 年锚点距 now 超 500 年（已越过 Duration 的纳秒精度档，约 292 年为界，
+        // 2.2.0 修复的误抛越界正发生在这一区段）：epoch 秒差修复后正常落位。
         // 天/周是钟面格点（按本地日期重组），跨 1901 年 LMT→CST 偏移变化后 epoch 秒
         // 对齐不保持，断言按本地日期与本地时刻对齐
         val schedule =

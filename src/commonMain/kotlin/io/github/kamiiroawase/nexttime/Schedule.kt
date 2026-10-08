@@ -56,7 +56,8 @@ private val JULIAN_GREGORIAN_GAP_END_MILLIS =
  * @param targetMinute 目标分，-1 表示未选
  * @param targetSecond 目标秒，-1 表示未选
  * @param repeatInterval 重复间隔，0 表示不重复
- * @param repeatUnit 重复单位，取 [RepeatUnit] 常量
+ * @param repeatUnit 重复单位，取 [RepeatUnit] 常量；[RepeatUnit.NONE] 时无论
+ * [repeatInterval] 取值为何均按不重复处理（间隔被忽略，与 interval = 0 同效）
  */
 public data class Schedule(
     public val lunar: Boolean = false,

@@ -1,8 +1,10 @@
 # v* tag 推送时触发：把 KMP 模块构件签名发布到 Maven Central（Central Portal、
 # 自动 release），并重新发布到本地 Maven 仓库作为 GitHub Release 附件（aar/jar/klib
 # 加 pom/module/sources，Release 不存在则自动创建）；tag 带的 README 版本坐标没随
-# tag 更新时大声失败。完整构建门禁（编译、主机侧测试、格式检查）在发布之前于
-# tag 本身运行——tag 可能指向未经 Build 工作流验证的提交，而 Central 发布不可撤销。
+# tag 更新时大声失败。完整构建门禁在发布之前于 tag 本身运行：ubuntu 侧编译、
+# 主机测试与格式检查，macOS 侧 iOS 模拟器测试（iOS 测试无法在 Linux 运行，
+# release job 以其通过为先决）——tag 可能指向未经 Build 工作流验证的提交，
+# 而 Central 发布不可撤销。
 #
 # 所需仓库 secrets（Central Portal：https://central.sonatype.com）：
 #   ORG_GRADLE_PROJECT_mavenCentralUsername / …Password — Portal 用户令牌
@@ -31,7 +33,43 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # 发布的 iOS 侧门禁：commonTest 在 iOS 模拟器上运行（Linux 上 iOS 测试无法
+  # 执行，release job 的 ./gradlew build 只做交叉编译）。与 Build 工作流的
+  # ios-tests 同构；此处失败即整个 Release 失败，发布不会进行
+  ios-tests:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: gradle
+          cache-dependency-path: |
+            gradle/libs.versions.toml
+            gradle/wrapper/gradle-wrapper.properties
+            **/*.gradle.kts
+
+      - name: Run iOS simulator tests
+        run: ./gradlew iosSimulatorArm64Test
+
+      - name: Upload iOS test reports
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ios-test-reports
+          path: |
+            build/reports/tests/**
+            build/test-results/**
+          if-no-files-found: ignore
+
   release:
+    needs: ios-tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
