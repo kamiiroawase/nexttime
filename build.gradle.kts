@@ -8,6 +8,12 @@ plugins {
     alias(libs.plugins.android.kotlin.multiplatform.library)
     alias(libs.plugins.spotless)
     alias(libs.plugins.maven.publish)
+
+    // 公开 API 二进制兼容守护：api/nexttime.api 是已发布 API 的快照，有意改动
+    // public 签名后跑 ./gradlew apiDump 更新并随提交评审；apiCheck 挂在 check
+    // 上，./gradlew build 与两个 CI 工作流即含校验，防止无意的 API 破坏流出到
+    // Maven Central
+    alias(libs.plugins.binary.compatibility.validator)
 }
 
 group = "io.github.kamiiroawase"
@@ -84,6 +90,17 @@ kotlin {
                 )
             }
         }
+    }
+}
+
+// klib 目标（iOS 真机/模拟器、wasmJs）的 ABI 守护：JVM 快照不覆盖 klib 消费方，
+// iOS/wasmJs 侧的 ABI 破坏此前无门禁；Android 变体与 JVM 同源同声明
+// （explicitApi 编译期强制），由 JVM 快照代理。klib 校验是 BCV 的 alpha 能力，
+// dump 含 ABI 签名、跨 Kotlin 版本可能重排，apiCheck 失败时人工 diff 确认后
+// 重跑 apiDump 更新
+apiValidation {
+    klib {
+        enabled = true
     }
 }
 

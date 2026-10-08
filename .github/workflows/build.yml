@@ -12,18 +12,20 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# 所有 action 按 commit SHA 固定（tag 可被仓库侧改写重指；行尾注释记录版本）。
+# 升级由 Dependabot 提 PR 更新 SHA 与注释，人工审查 diff 后合入
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # 完整克隆：git describe 需要可达 tag，浅克隆取不到
           fetch-depth: 0
 
-      - uses: gradle/actions/wrapper-validation@v6
+      - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: 21
@@ -33,10 +35,11 @@ jobs:
             gradle/wrapper/gradle-wrapper.properties
             **/*.gradle.kts
 
-      # spotlessCheck 挂在 check 上，build 已含格式检查；
-      # iOS 目标在 Linux 交叉编译，jvm/android 单元测试与 wasm(Node) 测试在本机执行
+      # spotlessCheck 与 apiCheck（公开 API 二进制兼容校验）挂在 check 上，
+      # build 已含两者；iOS 目标在 Linux 交叉编译，jvm/android 单元测试与
+      # wasm(Node) 测试在本机执行
       - name: Build, test and check format
-        run: chmod +x gradlew && ./gradlew build
+        run: ./gradlew build
 
       # Maven Central 发布本身只在 Release 工作流（tag 推送、带凭据）执行；发布链路
       # 的 CI 覆盖在这里：发布到本地 Maven 后断言 KMP 六模块（根 +
@@ -70,7 +73,7 @@ jobs:
 
       - name: Upload test reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-reports
           path: |
@@ -82,9 +85,9 @@ jobs:
   ios-tests:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
         with:
           distribution: temurin
           java-version: 21
@@ -95,11 +98,11 @@ jobs:
             **/*.gradle.kts
 
       - name: Run iOS simulator tests
-        run: chmod +x gradlew && ./gradlew iosSimulatorArm64Test
+        run: ./gradlew iosSimulatorArm64Test
 
       - name: Upload iOS test reports
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ios-test-reports
           path: |

@@ -1,0 +1,144 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64, wasmJs]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <io.github.kamiiroawase:nexttime>
+final enum class io.github.kamiiroawase.nexttime/CountdownUnit : kotlin/Enum<io.github.kamiiroawase.nexttime/CountdownUnit> { // io.github.kamiiroawase.nexttime/CountdownUnit|null[0]
+    enum entry DAYS // io.github.kamiiroawase.nexttime/CountdownUnit.DAYS|null[0]
+    enum entry HOURS // io.github.kamiiroawase.nexttime/CountdownUnit.HOURS|null[0]
+    enum entry MINUTES // io.github.kamiiroawase.nexttime/CountdownUnit.MINUTES|null[0]
+    enum entry SECONDS // io.github.kamiiroawase.nexttime/CountdownUnit.SECONDS|null[0]
+
+    final val entries // io.github.kamiiroawase.nexttime/CountdownUnit.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<io.github.kamiiroawase.nexttime/CountdownUnit> // io.github.kamiiroawase.nexttime/CountdownUnit.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): io.github.kamiiroawase.nexttime/CountdownUnit // io.github.kamiiroawase.nexttime/CountdownUnit.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<io.github.kamiiroawase.nexttime/CountdownUnit> // io.github.kamiiroawase.nexttime/CountdownUnit.values|values#static(){}[0]
+}
+
+final enum class io.github.kamiiroawase.nexttime/Rounding : kotlin/Enum<io.github.kamiiroawase.nexttime/Rounding> { // io.github.kamiiroawase.nexttime/Rounding|null[0]
+    enum entry CEIL_FUTURE // io.github.kamiiroawase.nexttime/Rounding.CEIL_FUTURE|null[0]
+    enum entry TRUNCATE // io.github.kamiiroawase.nexttime/Rounding.TRUNCATE|null[0]
+
+    final val entries // io.github.kamiiroawase.nexttime/Rounding.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<io.github.kamiiroawase.nexttime/Rounding> // io.github.kamiiroawase.nexttime/Rounding.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): io.github.kamiiroawase.nexttime/Rounding // io.github.kamiiroawase.nexttime/Rounding.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<io.github.kamiiroawase.nexttime/Rounding> // io.github.kamiiroawase.nexttime/Rounding.values|values#static(){}[0]
+}
+
+final class io.github.kamiiroawase.nexttime/CalendarCountdown { // io.github.kamiiroawase.nexttime/CalendarCountdown|null[0]
+    constructor <init>(kotlin/Boolean, kotlin/Int, kotlin/Int, kotlin/Int, kotlin/Int, kotlin/Int, kotlin/Int) // io.github.kamiiroawase.nexttime/CalendarCountdown.<init>|<init>(kotlin.Boolean;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int){}[0]
+
+    final val days // io.github.kamiiroawase.nexttime/CalendarCountdown.days|{}days[0]
+        final fun <get-days>(): kotlin/Int // io.github.kamiiroawase.nexttime/CalendarCountdown.days.<get-days>|<get-days>(){}[0]
+    final val hours // io.github.kamiiroawase.nexttime/CalendarCountdown.hours|{}hours[0]
+        final fun <get-hours>(): kotlin/Int // io.github.kamiiroawase.nexttime/CalendarCountdown.hours.<get-hours>|<get-hours>(){}[0]
+    final val minutes // io.github.kamiiroawase.nexttime/CalendarCountdown.minutes|{}minutes[0]
+        final fun <get-minutes>(): kotlin/Int // io.github.kamiiroawase.nexttime/CalendarCountdown.minutes.<get-minutes>|<get-minutes>(){}[0]
+    final val months // io.github.kamiiroawase.nexttime/CalendarCountdown.months|{}months[0]
+        final fun <get-months>(): kotlin/Int // io.github.kamiiroawase.nexttime/CalendarCountdown.months.<get-months>|<get-months>(){}[0]
+    final val past // io.github.kamiiroawase.nexttime/CalendarCountdown.past|{}past[0]
+        final fun <get-past>(): kotlin/Boolean // io.github.kamiiroawase.nexttime/CalendarCountdown.past.<get-past>|<get-past>(){}[0]
+    final val seconds // io.github.kamiiroawase.nexttime/CalendarCountdown.seconds|{}seconds[0]
+        final fun <get-seconds>(): kotlin/Int // io.github.kamiiroawase.nexttime/CalendarCountdown.seconds.<get-seconds>|<get-seconds>(){}[0]
+    final val years // io.github.kamiiroawase.nexttime/CalendarCountdown.years|{}years[0]
+        final fun <get-years>(): kotlin/Int // io.github.kamiiroawase.nexttime/CalendarCountdown.years.<get-years>|<get-years>(){}[0]
+
+    final fun component1(): kotlin/Boolean // io.github.kamiiroawase.nexttime/CalendarCountdown.component1|component1(){}[0]
+    final fun component2(): kotlin/Int // io.github.kamiiroawase.nexttime/CalendarCountdown.component2|component2(){}[0]
+    final fun component3(): kotlin/Int // io.github.kamiiroawase.nexttime/CalendarCountdown.component3|component3(){}[0]
+    final fun component4(): kotlin/Int // io.github.kamiiroawase.nexttime/CalendarCountdown.component4|component4(){}[0]
+    final fun component5(): kotlin/Int // io.github.kamiiroawase.nexttime/CalendarCountdown.component5|component5(){}[0]
+    final fun component6(): kotlin/Int // io.github.kamiiroawase.nexttime/CalendarCountdown.component6|component6(){}[0]
+    final fun component7(): kotlin/Int // io.github.kamiiroawase.nexttime/CalendarCountdown.component7|component7(){}[0]
+    final fun copy(kotlin/Boolean = ..., kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ...): io.github.kamiiroawase.nexttime/CalendarCountdown // io.github.kamiiroawase.nexttime/CalendarCountdown.copy|copy(kotlin.Boolean;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.kamiiroawase.nexttime/CalendarCountdown.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.kamiiroawase.nexttime/CalendarCountdown.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.kamiiroawase.nexttime/CalendarCountdown.toString|toString(){}[0]
+}
+
+final class io.github.kamiiroawase.nexttime/Countdown { // io.github.kamiiroawase.nexttime/Countdown|null[0]
+    constructor <init>(kotlin/Boolean, kotlin/Long, io.github.kamiiroawase.nexttime/CountdownUnit) // io.github.kamiiroawase.nexttime/Countdown.<init>|<init>(kotlin.Boolean;kotlin.Long;io.github.kamiiroawase.nexttime.CountdownUnit){}[0]
+
+    final val past // io.github.kamiiroawase.nexttime/Countdown.past|{}past[0]
+        final fun <get-past>(): kotlin/Boolean // io.github.kamiiroawase.nexttime/Countdown.past.<get-past>|<get-past>(){}[0]
+    final val unit // io.github.kamiiroawase.nexttime/Countdown.unit|{}unit[0]
+        final fun <get-unit>(): io.github.kamiiroawase.nexttime/CountdownUnit // io.github.kamiiroawase.nexttime/Countdown.unit.<get-unit>|<get-unit>(){}[0]
+    final val value // io.github.kamiiroawase.nexttime/Countdown.value|{}value[0]
+        final fun <get-value>(): kotlin/Long // io.github.kamiiroawase.nexttime/Countdown.value.<get-value>|<get-value>(){}[0]
+
+    final fun component1(): kotlin/Boolean // io.github.kamiiroawase.nexttime/Countdown.component1|component1(){}[0]
+    final fun component2(): kotlin/Long // io.github.kamiiroawase.nexttime/Countdown.component2|component2(){}[0]
+    final fun component3(): io.github.kamiiroawase.nexttime/CountdownUnit // io.github.kamiiroawase.nexttime/Countdown.component3|component3(){}[0]
+    final fun copy(kotlin/Boolean = ..., kotlin/Long = ..., io.github.kamiiroawase.nexttime/CountdownUnit = ...): io.github.kamiiroawase.nexttime/Countdown // io.github.kamiiroawase.nexttime/Countdown.copy|copy(kotlin.Boolean;kotlin.Long;io.github.kamiiroawase.nexttime.CountdownUnit){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.kamiiroawase.nexttime/Countdown.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.kamiiroawase.nexttime/Countdown.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.kamiiroawase.nexttime/Countdown.toString|toString(){}[0]
+}
+
+final class io.github.kamiiroawase.nexttime/Schedule { // io.github.kamiiroawase.nexttime/Schedule|null[0]
+    constructor <init>(kotlin/Boolean = ..., kotlin/Boolean = ..., kotlin/Long = ..., kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ...) // io.github.kamiiroawase.nexttime/Schedule.<init>|<init>(kotlin.Boolean;kotlin.Boolean;kotlin.Long;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int){}[0]
+
+    final val leapCount // io.github.kamiiroawase.nexttime/Schedule.leapCount|{}leapCount[0]
+        final fun <get-leapCount>(): kotlin/Boolean // io.github.kamiiroawase.nexttime/Schedule.leapCount.<get-leapCount>|<get-leapCount>(){}[0]
+    final val lunar // io.github.kamiiroawase.nexttime/Schedule.lunar|{}lunar[0]
+        final fun <get-lunar>(): kotlin/Boolean // io.github.kamiiroawase.nexttime/Schedule.lunar.<get-lunar>|<get-lunar>(){}[0]
+    final val repeatInterval // io.github.kamiiroawase.nexttime/Schedule.repeatInterval|{}repeatInterval[0]
+        final fun <get-repeatInterval>(): kotlin/Int // io.github.kamiiroawase.nexttime/Schedule.repeatInterval.<get-repeatInterval>|<get-repeatInterval>(){}[0]
+    final val repeatUnit // io.github.kamiiroawase.nexttime/Schedule.repeatUnit|{}repeatUnit[0]
+        final fun <get-repeatUnit>(): kotlin/Int // io.github.kamiiroawase.nexttime/Schedule.repeatUnit.<get-repeatUnit>|<get-repeatUnit>(){}[0]
+    final val targetDay // io.github.kamiiroawase.nexttime/Schedule.targetDay|{}targetDay[0]
+        final fun <get-targetDay>(): kotlin/Long // io.github.kamiiroawase.nexttime/Schedule.targetDay.<get-targetDay>|<get-targetDay>(){}[0]
+    final val targetHour // io.github.kamiiroawase.nexttime/Schedule.targetHour|{}targetHour[0]
+        final fun <get-targetHour>(): kotlin/Int // io.github.kamiiroawase.nexttime/Schedule.targetHour.<get-targetHour>|<get-targetHour>(){}[0]
+    final val targetMinute // io.github.kamiiroawase.nexttime/Schedule.targetMinute|{}targetMinute[0]
+        final fun <get-targetMinute>(): kotlin/Int // io.github.kamiiroawase.nexttime/Schedule.targetMinute.<get-targetMinute>|<get-targetMinute>(){}[0]
+    final val targetSecond // io.github.kamiiroawase.nexttime/Schedule.targetSecond|{}targetSecond[0]
+        final fun <get-targetSecond>(): kotlin/Int // io.github.kamiiroawase.nexttime/Schedule.targetSecond.<get-targetSecond>|<get-targetSecond>(){}[0]
+
+    final fun component1(): kotlin/Boolean // io.github.kamiiroawase.nexttime/Schedule.component1|component1(){}[0]
+    final fun component2(): kotlin/Boolean // io.github.kamiiroawase.nexttime/Schedule.component2|component2(){}[0]
+    final fun component3(): kotlin/Long // io.github.kamiiroawase.nexttime/Schedule.component3|component3(){}[0]
+    final fun component4(): kotlin/Int // io.github.kamiiroawase.nexttime/Schedule.component4|component4(){}[0]
+    final fun component5(): kotlin/Int // io.github.kamiiroawase.nexttime/Schedule.component5|component5(){}[0]
+    final fun component6(): kotlin/Int // io.github.kamiiroawase.nexttime/Schedule.component6|component6(){}[0]
+    final fun component7(): kotlin/Int // io.github.kamiiroawase.nexttime/Schedule.component7|component7(){}[0]
+    final fun component8(): kotlin/Int // io.github.kamiiroawase.nexttime/Schedule.component8|component8(){}[0]
+    final fun copy(kotlin/Boolean = ..., kotlin/Boolean = ..., kotlin/Long = ..., kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ..., kotlin/Int = ...): io.github.kamiiroawase.nexttime/Schedule // io.github.kamiiroawase.nexttime/Schedule.copy|copy(kotlin.Boolean;kotlin.Boolean;kotlin.Long;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int;kotlin.Int){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.kamiiroawase.nexttime/Schedule.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.kamiiroawase.nexttime/Schedule.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.kamiiroawase.nexttime/Schedule.toString|toString(){}[0]
+
+    final object Companion { // io.github.kamiiroawase.nexttime/Schedule.Companion|null[0]
+        final const val MAX_REPEAT_INTERVAL // io.github.kamiiroawase.nexttime/Schedule.Companion.MAX_REPEAT_INTERVAL|{}MAX_REPEAT_INTERVAL[0]
+            final fun <get-MAX_REPEAT_INTERVAL>(): kotlin/Int // io.github.kamiiroawase.nexttime/Schedule.Companion.MAX_REPEAT_INTERVAL.<get-MAX_REPEAT_INTERVAL>|<get-MAX_REPEAT_INTERVAL>(){}[0]
+    }
+}
+
+final object io.github.kamiiroawase.nexttime/RepeatUnit { // io.github.kamiiroawase.nexttime/RepeatUnit|null[0]
+    final const val DAY // io.github.kamiiroawase.nexttime/RepeatUnit.DAY|{}DAY[0]
+        final fun <get-DAY>(): kotlin/Int // io.github.kamiiroawase.nexttime/RepeatUnit.DAY.<get-DAY>|<get-DAY>(){}[0]
+    final const val HOUR // io.github.kamiiroawase.nexttime/RepeatUnit.HOUR|{}HOUR[0]
+        final fun <get-HOUR>(): kotlin/Int // io.github.kamiiroawase.nexttime/RepeatUnit.HOUR.<get-HOUR>|<get-HOUR>(){}[0]
+    final const val MINUTE // io.github.kamiiroawase.nexttime/RepeatUnit.MINUTE|{}MINUTE[0]
+        final fun <get-MINUTE>(): kotlin/Int // io.github.kamiiroawase.nexttime/RepeatUnit.MINUTE.<get-MINUTE>|<get-MINUTE>(){}[0]
+    final const val MONTH // io.github.kamiiroawase.nexttime/RepeatUnit.MONTH|{}MONTH[0]
+        final fun <get-MONTH>(): kotlin/Int // io.github.kamiiroawase.nexttime/RepeatUnit.MONTH.<get-MONTH>|<get-MONTH>(){}[0]
+    final const val NONE // io.github.kamiiroawase.nexttime/RepeatUnit.NONE|{}NONE[0]
+        final fun <get-NONE>(): kotlin/Int // io.github.kamiiroawase.nexttime/RepeatUnit.NONE.<get-NONE>|<get-NONE>(){}[0]
+    final const val WEEK // io.github.kamiiroawase.nexttime/RepeatUnit.WEEK|{}WEEK[0]
+        final fun <get-WEEK>(): kotlin/Int // io.github.kamiiroawase.nexttime/RepeatUnit.WEEK.<get-WEEK>|<get-WEEK>(){}[0]
+    final const val YEAR // io.github.kamiiroawase.nexttime/RepeatUnit.YEAR|{}YEAR[0]
+        final fun <get-YEAR>(): kotlin/Int // io.github.kamiiroawase.nexttime/RepeatUnit.YEAR.<get-YEAR>|<get-YEAR>(){}[0]
+}
+
+final fun (io.github.kamiiroawase.nexttime/Schedule).io.github.kamiiroawase.nexttime/anchor(kotlinx.datetime/TimeZone = ...): kotlin.time/Instant? // io.github.kamiiroawase.nexttime/anchor|anchor@io.github.kamiiroawase.nexttime.Schedule(kotlinx.datetime.TimeZone){}[0]
+final fun (io.github.kamiiroawase.nexttime/Schedule).io.github.kamiiroawase.nexttime/nextTarget(kotlin.time/Instant = ..., kotlinx.datetime/TimeZone = ..., kotlin.time/Instant? = ...): kotlin.time/Instant? // io.github.kamiiroawase.nexttime/nextTarget|nextTarget@io.github.kamiiroawase.nexttime.Schedule(kotlin.time.Instant;kotlinx.datetime.TimeZone;kotlin.time.Instant?){}[0]
+final fun (io.github.kamiiroawase.nexttime/Schedule).io.github.kamiiroawase.nexttime/previousTarget(kotlin.time/Instant = ..., kotlinx.datetime/TimeZone = ...): kotlin.time/Instant? // io.github.kamiiroawase.nexttime/previousTarget|previousTarget@io.github.kamiiroawase.nexttime.Schedule(kotlin.time.Instant;kotlinx.datetime.TimeZone){}[0]
+final fun io.github.kamiiroawase.nexttime/calendarCountdown(kotlin.time/Instant, kotlin.time/Instant, kotlinx.datetime/TimeZone): io.github.kamiiroawase.nexttime/CalendarCountdown // io.github.kamiiroawase.nexttime/calendarCountdown|calendarCountdown(kotlin.time.Instant;kotlin.time.Instant;kotlinx.datetime.TimeZone){}[0]
+final fun io.github.kamiiroawase.nexttime/countdown(kotlin.time/Instant, kotlin.time/Instant): io.github.kamiiroawase.nexttime/Countdown // io.github.kamiiroawase.nexttime/countdown|countdown(kotlin.time.Instant;kotlin.time.Instant){}[0]
+final fun io.github.kamiiroawase.nexttime/countdown(kotlin.time/Instant, kotlin.time/Instant, io.github.kamiiroawase.nexttime/Rounding = ...): io.github.kamiiroawase.nexttime/Countdown // io.github.kamiiroawase.nexttime/countdown|countdown(kotlin.time.Instant;kotlin.time.Instant;io.github.kamiiroawase.nexttime.Rounding){}[0]

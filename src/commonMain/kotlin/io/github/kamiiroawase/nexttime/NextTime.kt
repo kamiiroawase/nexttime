@@ -94,7 +94,8 @@ public fun Schedule.anchor(zone: TimeZone = TimeZone.currentSystemDefault()): In
  * 与农历路径一致。
  *
  * 推算年份（公历与农历）越过支持范围 0001..9999 时抛 [IllegalStateException]，
- * 不会死循环；锚点日期范围已在构造期校验。
+ * 不会死循环；锚点日期范围已在构造期校验。until 早于 now 的完结判定先行
+ * 返回 null，不触发越界异常。
  *
  * 小时/分钟重复按**真实时长格点**（出现 = 锚点 + 步数×间隔，ISO 8601 的
  * time-based 惯例）：不经「日期 + 时刻 + 时区」组合，跨夏令时出现时刻的本地
@@ -104,7 +105,8 @@ public fun Schedule.anchor(zone: TimeZone = TimeZone.currentSystemDefault()): In
  *
  * @param until 重复推进的可选上限：出现晚于 until 时返回 null（出现序列单调，
  * 后续必然全部超限，重复已完结）。仅约束重复推进——非重复日程与锚点本身
- * （尚在未来、原样返回的路径）不受 until 影响，重复结束不能追溯取消锚点
+ * （尚在未来、原样返回的路径）不受 until 影响，重复结束不能追溯取消锚点；
+ * until 早于 now 时任何不早于 now 的出现必然超限，直接返回 null
  */
 public fun Schedule.nextTarget(
     now: Instant = Clock.System.now(),
@@ -121,13 +123,21 @@ public fun Schedule.nextTarget(
         return compose(date, time, zone)
     }
 
+    // 锚点（第一次出现）统一在此返回：HOUR/MINUTE、公历、农历三条路径的锚点同为
+    // 「锚点日 + 时刻 + 时区」的组合时刻（农历首候选即锚点公历日期的往返换算，
+    // 取值恒等）。锚点豁免 until——重复结束不能追溯取消锚点
+    val anchor = compose(date, time, zone)
+    if (anchor >= now) return anchor
+
+    // until 早于 now：出现序列自锚点起单调，任何不早于 now 的出现必然晚于
+    // until（重复已完结），直接返回 null——顺带兜住「now 远到把推算推过
+    // 0001..9999 范围界」的场景，此时正确答案同样是 null 而非越界异常
+    if (until != null && until < now) return null
+
     if (repeatUnit == RepeatUnit.HOUR || repeatUnit == RepeatUnit.MINUTE) {
         // 真实时长格点：出现 = 锚点 + 步数×周期秒。epoch 秒运算（而非 Duration）：
         // 两千年级跨度的纳秒差会饱和 Long（约 292 年上限）。秒差向下取整后真实
         // 步数至多多一步，小步前推兜住亚秒分量
-        val anchor = compose(date, time, zone)
-        if (anchor >= now) return anchor
-
         val periodSeconds =
             if (repeatUnit == RepeatUnit.HOUR) {
                 repeatInterval * 3600L
@@ -144,9 +154,6 @@ public fun Schedule.nextTarget(
     }
 
     if (!lunar || repeatUnit == RepeatUnit.DAY || repeatUnit == RepeatUnit.WEEK) {
-        val anchor = compose(date, time, zone)
-        if (anchor >= now) return anchor
-
         if (repeatUnit == RepeatUnit.DAY || repeatUnit == RepeatUnit.WEEK) {
             // 天/周无月末收缩，出现日期 = 锚点日 + 步数×周期天数：先按周期秒数估算
             // 步数、留出时区不连续余量（见 ZONE_DISCONTINUITY_SLACK_SECONDS），
@@ -176,7 +183,9 @@ public fun Schedule.nextTarget(
         }
 
         // 月/年重复以锚点日为基准收缩回弹（1/31 → 2/28 → 3/31），须逐步自锚点推进；
-        // 月/年跨度下迭代数天然有限（数十年仅数百次）
+        // 迭代数 = 日历距离 ÷ 间隔，随锚点距今变远线性增长：数十年数百次，最坏
+        // （公元 1 年锚点月重复推到 9999 年）约 12 万次，实测 JVM 数十毫秒——
+        // 量级有界，无需直算快路径
         var step = repeatInterval.toLong()
         while (true) {
             val nextDate =
@@ -337,7 +346,10 @@ public fun countdown(
  * 推算限于可靠农历年表（含内层逐月推进），越界抛 [IllegalStateException]，
  * 不会死循环。长跨度走快路径：早于 now 两年的农历年跳过候选换算，年表按年缓存。
  *
- * @param until 重复出现的可选上限（见 [nextTarget]）；锚点候选同锚点路径豁免
+ * 锚点（第一次出现）由调用方在进入前处理：anchor 不早于 now 时已提前返回，
+ * 函数内的候选均为非锚点出现，返回值一律受 until 封顶。
+ *
+ * @param until 重复出现的可选上限（见 [nextTarget]）
  */
 private fun Schedule.nextLunarTarget(
     first: LunarDay,
@@ -349,86 +361,40 @@ private fun Schedule.nextLunarTarget(
     var year = first.year
     var month = first.month
 
-    // 年表缓存：同一农历年的连续步进复用 LunarYear 与月表，跨年时在 refresh 中
-    // 重建并做年份越界检查
-    var cachedYear = Int.MIN_VALUE
-    var cachedLeapMonth = 0
-    var cachedMonths: List<LunarMonth> = emptyList()
-    var cachedNormalMonths: List<LunarMonth> = emptyList()
-
-    fun refreshYearCache() {
-        checkLunarYear(year)
-        if (cachedYear == year) return
-        val lunarYear = LunarYear.fromYear(year)
-        cachedYear = year
-        cachedLeapMonth = lunarYear.getLeapMonth()
-        cachedMonths = lunarYear.getMonths()
-        cachedNormalMonths = cachedMonths.filter { it.getMonthWithLeap() > 0 }
-    }
+    val table = LunarYearTable()
 
     // now 超出 LocalDate 可表示年份（>9999）时取不到本地年份：以极值参与快路径
     // 比较，候选全部视为已过、只步进，随后年份越界守护立即失败
     val nowYear = runCatching { now.toLocalDateTime(zone).year }.getOrDefault(Int.MAX_VALUE)
 
-    // 首轮候选即锚点（出现 #0），与公历路径的锚点豁免一致：不受 until 封顶
-    var anchorGrid = true
-
     while (true) {
-        refreshYearCache()
+        table.refresh(year)
 
-        val leapMonth = cachedLeapMonth
-
-        val candidateMonth =
-            when {
-                month > 0 || leapMonth == -month -> month
-                leapCount -> -month
-                else -> 0
-            }
+        val candidate = candidateMonth(month, table.leapMonth, leapCount)
 
         // 农历年 Y 的候选最晚落在公历次年春节前（约次年 2 月中）：Y 早于 now 两年
         // 及以上时候选必然已过，跳过昂贵的历法换算只步进（跨数十年即数百次换算）
-        if (candidateMonth != 0 && year > nowYear - 2) {
-            val day = minOf(first.day, LunarMonth.fromYm(year, candidateMonth).getDayCount())
+        if (candidate != 0 && year > nowYear - 2) {
+            val day = minOf(first.day, LunarMonth.fromYm(year, candidate).getDayCount())
 
-            val solar = LunarDay.fromYmd(year, candidateMonth, day).getSolarDay()
+            val solar = LunarDay.fromYmd(year, candidate, day).getSolarDay()
 
             val target = compose(LocalDate(solar.year, solar.month, solar.day), time, zone)
 
-            if (target >= now) return if (anchorGrid) target else capped(target, until)
+            if (target >= now) return capped(target, until)
         }
 
         if (repeatUnit == RepeatUnit.MONTH) {
             repeat(repeatInterval) {
-                // 内层逐月推进不经过外层循环顶部的年份检查，越界须在此立即失败
-                refreshYearCache()
-
-                val months = if (leapCount) cachedMonths else cachedNormalMonths
-
-                // 月表项自带所属农历年，必须同年同月匹配，否则冬月/腊月会匹配到
-                // 相邻年份的同名月导致年份不推进、死循环
-                var index = months.indexOfFirst { it.getMonthWithLeap() == month && it.year == year }
-
-                // 闰月被过滤时（闰月日日程 + 闰月不参与），按普通月定位继续沿月序推进
-                if (index < 0 && month < 0) {
-                    index = months.indexOfFirst { it.getMonthWithLeap() == -month && it.year == year }
-                }
-
-                if (index in 0 until months.size - 1) {
-                    // 月表末尾可能是次年正月：年份须与月份一并采用，否则 year 不推进、
-                    // 在当年正月与腊月间死循环
-                    val next = months[index + 1]
-                    year = next.year
-                    month = next.getMonthWithLeap()
-                } else {
-                    year += 1
-                    month = 1
-                }
+                // 内层逐月推进的年份越界检查在 stepLunarMonth 的 refresh 内，
+                // 越过界即抛（next 语义）
+                val stepped = stepLunarMonth(table, leapCount, year, month)
+                year = stepped.first
+                month = stepped.second
             }
         } else {
             year += repeatInterval
         }
-
-        anchorGrid = false
     }
 }
 
@@ -449,22 +415,7 @@ private fun Schedule.previousLunarTarget(
     var year = first.year
     var month = first.month
 
-    // 年表缓存：同一农历年的连续步进复用 LunarYear 与月表，跨年时在 refresh 中
-    // 重建并做年份越界检查
-    var cachedYear = Int.MIN_VALUE
-    var cachedLeapMonth = 0
-    var cachedMonths: List<LunarMonth> = emptyList()
-    var cachedNormalMonths: List<LunarMonth> = emptyList()
-
-    fun refreshYearCache() {
-        checkLunarYear(year)
-        if (cachedYear == year) return
-        val lunarYear = LunarYear.fromYear(year)
-        cachedYear = year
-        cachedLeapMonth = lunarYear.getLeapMonth()
-        cachedMonths = lunarYear.getMonths()
-        cachedNormalMonths = cachedMonths.filter { it.getMonthWithLeap() > 0 }
-    }
+    val table = LunarYearTable()
 
     // 日收缩 + 历法换算 + 组合；跳过区回退时也要组合记录的格点，单处复用
     fun composeGrid(
@@ -489,26 +440,19 @@ private fun Schedule.previousLunarTarget(
     while (true) {
         if (year > MAX_LUNAR_YEAR) return lastBelow ?: composeGrid(pendingYear, pendingMonth)
 
-        refreshYearCache()
+        table.refresh(year)
 
-        val leapMonth = cachedLeapMonth
+        val candidate = candidateMonth(month, table.leapMonth, leapCount)
 
-        val candidateMonth =
-            when {
-                month > 0 || leapMonth == -month -> month
-                leapCount -> -month
-                else -> 0
-            }
-
-        if (candidateMonth != 0) {
+        if (candidate != 0) {
             // 与 nextLunarTarget 的跳过条件对偶：农历年 Y 的候选最晚落在公历次年
             // 春节前（约次年 2 月中），Y 早于 before 两年及以上时候选必然不晚于
             // before，跳过昂贵的历法换算只记录格点（跨数十年即数百次换算）
             if (year <= beforeYear - 2) {
                 pendingYear = year
-                pendingMonth = candidateMonth
+                pendingMonth = candidate
             } else {
-                val target = composeGrid(year, candidateMonth)
+                val target = composeGrid(year, candidate)
                 if (target > before) return lastBelow ?: composeGrid(pendingYear, pendingMonth)
                 lastBelow = target
             }
@@ -516,32 +460,12 @@ private fun Schedule.previousLunarTarget(
 
         if (repeatUnit == RepeatUnit.MONTH) {
             repeat(repeatInterval) {
-                // 内层逐月推进不经过外层循环顶部的年份检查，越界须在此立即收尾
+                // 内层逐月推进不经过外层循环顶部的年份检查：previous 语义在界前
+                // 收尾返回（不抛异常），须赶在 stepLunarMonth 的 refresh 抛出前返回
                 if (year > MAX_LUNAR_YEAR) return lastBelow ?: composeGrid(pendingYear, pendingMonth)
-
-                refreshYearCache()
-
-                val months = if (leapCount) cachedMonths else cachedNormalMonths
-
-                // 月表项自带所属农历年，必须同年同月匹配，否则冬月/腊月会匹配到
-                // 相邻年份的同名月导致年份不推进、死循环
-                var index = months.indexOfFirst { it.getMonthWithLeap() == month && it.year == year }
-
-                // 闰月被过滤时（闰月日日程 + 闰月不参与），按普通月定位继续沿月序推进
-                if (index < 0 && month < 0) {
-                    index = months.indexOfFirst { it.getMonthWithLeap() == -month && it.year == year }
-                }
-
-                if (index in 0 until months.size - 1) {
-                    // 月表末尾可能是次年正月：年份须与月份一并采用，否则 year 不推进、
-                    // 在当年正月与腊月间死循环
-                    val next = months[index + 1]
-                    year = next.year
-                    month = next.getMonthWithLeap()
-                } else {
-                    year += 1
-                    month = 1
-                }
+                val stepped = stepLunarMonth(table, leapCount, year, month)
+                year = stepped.first
+                month = stepped.second
             }
         } else {
             year += repeatInterval
@@ -549,11 +473,85 @@ private fun Schedule.previousLunarTarget(
     }
 }
 
-/** 推算年份超出 tyme 可靠范围时立即失败：越界年表数据不可信，且规则可能永远无法命中。 */
-private fun checkLunarYear(year: Int) {
-    check(year in MIN_LUNAR_YEAR..MAX_LUNAR_YEAR) {
-        "Lunar projection left the reliable lunar calendar range $MIN_LUNAR_YEAR..$MAX_LUNAR_YEAR; the repeat rule may never match"
+/** 农历年表越界错误：越界年表数据不可信（tyme 静默返回错值），且规则可能永远无法命中。 */
+private fun lunarRangeError(): IllegalStateException =
+    IllegalStateException(
+        "Lunar projection left the reliable lunar calendar range $MIN_LUNAR_YEAR..$MAX_LUNAR_YEAR; the repeat rule may never match",
+    )
+
+/**
+ * 农历年表缓存：同一农历年的连续步进复用 LunarYear 与月表，跨年时重建并做
+ * 年份越界检查（抛 [lunarRangeError]）。正反向推算共用同一实现。
+ */
+private class LunarYearTable {
+    var year: Int = Int.MIN_VALUE
+        private set
+
+    /** 当年闰月（-m 表示闰 m 月，0 表示无闰月） */
+    var leapMonth: Int = 0
+        private set
+
+    /** 当年全部月表（含闰月）；月表项自带所属农历年 */
+    var months: List<LunarMonth> = emptyList()
+        private set
+
+    /** 过滤闰月后的月表（闰月不参与步进时使用） */
+    var normalMonths: List<LunarMonth> = emptyList()
+        private set
+
+    fun refresh(year: Int) {
+        if (year !in MIN_LUNAR_YEAR..MAX_LUNAR_YEAR) throw lunarRangeError()
+        if (this.year == year) return
+        val lunarYear = LunarYear.fromYear(year)
+        this.year = year
+        leapMonth = lunarYear.getLeapMonth()
+        months = lunarYear.getMonths()
+        normalMonths = months.filter { it.getMonthWithLeap() > 0 }
     }
+}
+
+/** 当年候选月：闰月日日程遇「当年无该闰月且闰月不参与」时无候选（0），闰月参与时退化为普通月（-month）。 */
+private fun candidateMonth(
+    month: Int,
+    leapMonth: Int,
+    leapCount: Boolean,
+): Int =
+    when {
+        month > 0 || leapMonth == -month -> month
+        leapCount -> -month
+        else -> 0
+    }
+
+/**
+ * 沿农历月序自 (year, month) 推进一步，闰月是否在月表内由 [leapCount] 决定。
+ * 年份越界检查由内部的 [LunarYearTable.refresh] 承担，越界即抛（next 语义）；
+ * previous 语义的调用方须在界前自行收尾返回。
+ */
+private fun stepLunarMonth(
+    table: LunarYearTable,
+    leapCount: Boolean,
+    year: Int,
+    month: Int,
+): Pair<Int, Int> {
+    table.refresh(year)
+    val months = if (leapCount) table.months else table.normalMonths
+
+    // 月表项自带所属农历年，必须同年同月匹配，否则冬月/腊月会匹配到相邻年份的
+    // 同名月导致年份不推进、死循环
+    var index = months.indexOfFirst { it.getMonthWithLeap() == month && it.year == year }
+
+    // 闰月被过滤时（闰月日日程 + 闰月不参与），按普通月定位继续沿月序推进
+    if (index < 0 && month < 0) {
+        index = months.indexOfFirst { it.getMonthWithLeap() == -month && it.year == year }
+    }
+
+    if (index in 0 until months.size - 1) {
+        // 月表末尾可能是次年正月：年份须与月份一并采用，否则 year 不推进、
+        // 在当年正月与腊月间死循环
+        val next = months[index + 1]
+        return next.year to next.getMonthWithLeap()
+    }
+    return year + 1 to 1
 }
 
 /**

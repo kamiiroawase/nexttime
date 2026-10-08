@@ -4,8 +4,10 @@ import com.tyme.lunar.LunarDay
 import kotlinx.datetime.LocalDate
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.Instant
 
 /** anchor 与 nextTarget(until)：锚点暴露、封顶与锚点豁免语义 */
 @Suppress("NonAsciiCharacters", "RemoveRedundantBackticks")
@@ -91,6 +93,23 @@ class ProjectionTest {
             zdt(2026, 10, 1, 9),
             schedule.nextTarget(zdt(2026, 8, 26), shanghai, zdt(2026, 9, 1)),
         )
+    }
+
+    @Test
+    fun `until 早于now时远期推算直接完结不抛越界`() {
+        // now 越过范围界（9999-12-31 之后）而 until 在界内且早于 now：出现序列
+        // 单调，正确答案是 null——修复前会先撞范围守护抛 IllegalStateException
+        val schedule =
+            schedule(utcMillis(LocalDate(2020, 1, 1)), interval = 1, unit = 1)
+
+        assertNull(
+            schedule.nextTarget(Instant.parse("+10000-01-01T00:00:00Z"), shanghai, zdt(2026, 1, 1)),
+        )
+
+        // 对照：不带 until 的同一查询仍是诚实的越界异常（答案不可表示）
+        assertFailsWith<IllegalStateException> {
+            schedule.nextTarget(Instant.parse("+10000-01-01T00:00:00Z"), shanghai)
+        }
     }
 
     @Test

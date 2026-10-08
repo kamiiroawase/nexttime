@@ -4,8 +4,10 @@ import com.tyme.lunar.LunarDay
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
 /** 结果不变量：对一组典型重复日程断言普适性质，防回归 */
@@ -63,6 +65,41 @@ class InvariantTest {
                 val first = schedule.nextTarget(now, zone)!!
                 val second = schedule.nextTarget(first + 1.seconds, zone)!!
                 assertTrue(second > first, "目标未推进: $first -> $second")
+            }
+        }
+    }
+
+    @Test
+    fun `previousTarget结果不晚于before`() {
+        // 锚点晚于 now 的日程（如 2026-12-24 锚点配 2026-08 的 now）返回 null，
+        // 非空结果须不晚于 before
+        for ((now, zone) in cases) {
+            for (schedule in repeatingSchedules) {
+                val previous = schedule.previousTarget(now, zone) ?: continue
+                assertFalse(previous > now, "结果晚于 before: $previous")
+            }
+        }
+    }
+
+    @Test
+    fun `previousTarget与nextTarget在同一出现上对偶`() {
+        // next 后一瞬的反向推算回到 next 本身：next 是该瞬间「不晚于的最后出现」
+        for ((now, zone) in cases) {
+            for (schedule in repeatingSchedules) {
+                val next = schedule.nextTarget(now, zone)!!
+                assertEquals(next, schedule.previousTarget(next + 1.nanoseconds, zone))
+            }
+        }
+    }
+
+    @Test
+    fun `previousTarget不晚于nextTarget`() {
+        // 同一 now：不晚于 now 的最后出现不早于不早于 now 的首次出现（now 恰为
+        // 出现时两者相等）
+        for ((now, zone) in cases) {
+            for (schedule in repeatingSchedules) {
+                val previous = schedule.previousTarget(now, zone) ?: continue
+                assertFalse(previous > schedule.nextTarget(now, zone)!!, "previous 晚于 next: $previous")
             }
         }
     }

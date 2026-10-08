@@ -1,0 +1,115 @@
+public final class io/github/kamiiroawase/nexttime/CalendarCountdown {
+	public fun <init> (ZIIIIII)V
+	public final fun component1 ()Z
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun component6 ()I
+	public final fun component7 ()I
+	public final fun copy (ZIIIIII)Lio/github/kamiiroawase/nexttime/CalendarCountdown;
+	public static synthetic fun copy$default (Lio/github/kamiiroawase/nexttime/CalendarCountdown;ZIIIIIIILjava/lang/Object;)Lio/github/kamiiroawase/nexttime/CalendarCountdown;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDays ()I
+	public final fun getHours ()I
+	public final fun getMinutes ()I
+	public final fun getMonths ()I
+	public final fun getPast ()Z
+	public final fun getSeconds ()I
+	public final fun getYears ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kamiiroawase/nexttime/Countdown {
+	public fun <init> (ZJLio/github/kamiiroawase/nexttime/CountdownUnit;)V
+	public final fun component1 ()Z
+	public final fun component2 ()J
+	public final fun component3 ()Lio/github/kamiiroawase/nexttime/CountdownUnit;
+	public final fun copy (ZJLio/github/kamiiroawase/nexttime/CountdownUnit;)Lio/github/kamiiroawase/nexttime/Countdown;
+	public static synthetic fun copy$default (Lio/github/kamiiroawase/nexttime/Countdown;ZJLio/github/kamiiroawase/nexttime/CountdownUnit;ILjava/lang/Object;)Lio/github/kamiiroawase/nexttime/Countdown;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPast ()Z
+	public final fun getUnit ()Lio/github/kamiiroawase/nexttime/CountdownUnit;
+	public final fun getValue ()J
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kamiiroawase/nexttime/CountdownKt {
+	public static final fun calendarCountdown (Lkotlin/time/Instant;Lkotlin/time/Instant;Lkotlinx/datetime/TimeZone;)Lio/github/kamiiroawase/nexttime/CalendarCountdown;
+	public static final fun countdown (Lkotlin/time/Instant;Lkotlin/time/Instant;Lio/github/kamiiroawase/nexttime/Rounding;)Lio/github/kamiiroawase/nexttime/Countdown;
+	public static synthetic fun countdown$default (Lkotlin/time/Instant;Lkotlin/time/Instant;Lio/github/kamiiroawase/nexttime/Rounding;ILjava/lang/Object;)Lio/github/kamiiroawase/nexttime/Countdown;
+}
+
+public final class io/github/kamiiroawase/nexttime/CountdownUnit : java/lang/Enum {
+	public static final field DAYS Lio/github/kamiiroawase/nexttime/CountdownUnit;
+	public static final field HOURS Lio/github/kamiiroawase/nexttime/CountdownUnit;
+	public static final field MINUTES Lio/github/kamiiroawase/nexttime/CountdownUnit;
+	public static final field SECONDS Lio/github/kamiiroawase/nexttime/CountdownUnit;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/kamiiroawase/nexttime/CountdownUnit;
+	public static fun values ()[Lio/github/kamiiroawase/nexttime/CountdownUnit;
+}
+
+public final class io/github/kamiiroawase/nexttime/NextTimeKt {
+	public static final fun anchor (Lio/github/kamiiroawase/nexttime/Schedule;Lkotlinx/datetime/TimeZone;)Lkotlin/time/Instant;
+	public static synthetic fun anchor$default (Lio/github/kamiiroawase/nexttime/Schedule;Lkotlinx/datetime/TimeZone;ILjava/lang/Object;)Lkotlin/time/Instant;
+	public static final fun countdown (Lkotlin/time/Instant;Lkotlin/time/Instant;)Lio/github/kamiiroawase/nexttime/Countdown;
+	public static final fun nextTarget (Lio/github/kamiiroawase/nexttime/Schedule;Lkotlin/time/Instant;Lkotlinx/datetime/TimeZone;Lkotlin/time/Instant;)Lkotlin/time/Instant;
+	public static synthetic fun nextTarget$default (Lio/github/kamiiroawase/nexttime/Schedule;Lkotlin/time/Instant;Lkotlinx/datetime/TimeZone;Lkotlin/time/Instant;ILjava/lang/Object;)Lkotlin/time/Instant;
+	public static final fun previousTarget (Lio/github/kamiiroawase/nexttime/Schedule;Lkotlin/time/Instant;Lkotlinx/datetime/TimeZone;)Lkotlin/time/Instant;
+	public static synthetic fun previousTarget$default (Lio/github/kamiiroawase/nexttime/Schedule;Lkotlin/time/Instant;Lkotlinx/datetime/TimeZone;ILjava/lang/Object;)Lkotlin/time/Instant;
+}
+
+public final class io/github/kamiiroawase/nexttime/RepeatUnit {
+	public static final field DAY I
+	public static final field HOUR I
+	public static final field INSTANCE Lio/github/kamiiroawase/nexttime/RepeatUnit;
+	public static final field MINUTE I
+	public static final field MONTH I
+	public static final field NONE I
+	public static final field WEEK I
+	public static final field YEAR I
+}
+
+public final class io/github/kamiiroawase/nexttime/Rounding : java/lang/Enum {
+	public static final field CEIL_FUTURE Lio/github/kamiiroawase/nexttime/Rounding;
+	public static final field TRUNCATE Lio/github/kamiiroawase/nexttime/Rounding;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/kamiiroawase/nexttime/Rounding;
+	public static fun values ()[Lio/github/kamiiroawase/nexttime/Rounding;
+}
+
+public final class io/github/kamiiroawase/nexttime/Schedule {
+	public static final field Companion Lio/github/kamiiroawase/nexttime/Schedule$Companion;
+	public static final field MAX_REPEAT_INTERVAL I
+	public fun <init> ()V
+	public fun <init> (ZZJIIIII)V
+	public synthetic fun <init> (ZZJIIIIIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()J
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun component6 ()I
+	public final fun component7 ()I
+	public final fun component8 ()I
+	public final fun copy (ZZJIIIII)Lio/github/kamiiroawase/nexttime/Schedule;
+	public static synthetic fun copy$default (Lio/github/kamiiroawase/nexttime/Schedule;ZZJIIIIIILjava/lang/Object;)Lio/github/kamiiroawase/nexttime/Schedule;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLeapCount ()Z
+	public final fun getLunar ()Z
+	public final fun getRepeatInterval ()I
+	public final fun getRepeatUnit ()I
+	public final fun getTargetDay ()J
+	public final fun getTargetHour ()I
+	public final fun getTargetMinute ()I
+	public final fun getTargetSecond ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/kamiiroawase/nexttime/Schedule$Companion {
+}
+
