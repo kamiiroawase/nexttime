@@ -116,8 +116,9 @@ class ProjectionTest {
     fun `now越过界内最后出现而until更晚同样完结`() {
         // 与「until 早于 now」对偶的完结方向：now 与 until 都越过 9999 界时，
         // 任何不早于 now 的出现必然界外，[now, until] 内不可能再有界内出现——
-        // 返回 null；修复前会先撞范围守护抛 IllegalStateException。now 须越过
-        // 9999-12-31 末秒组合 + 48 小时余量（+10000-01-01 尚在余量内，不触发）
+        // 返回 null；修复前会先撞范围守护抛 IllegalStateException。now 取
+        // +12000 越过「9999-12-31 末秒组合 + 48 小时余量」的快路径上界，免推算
+        // 直接完结；尚在余量窗口内的完结由下面两个用例覆盖
         val schedule =
             schedule(utcMillis(LocalDate(2020, 1, 1)), interval = 1, unit = 1)
 
@@ -133,6 +134,60 @@ class ProjectionTest {
                 Instant.parse("+12000-01-01T00:00:00Z"),
                 newYork,
                 Instant.parse("+15000-01-01T00:00:00Z"),
+            ),
+        )
+    }
+
+    @Test
+    fun `now在余量窗口内带until完结不抛越界`() {
+        // 快路径上界（9999-12-31 末秒组合 + 48 小时余量）是保守近似：上海无
+        // 夏令时，每日 00:00 出现的最后一次界内出现是 9999-12-31T00:00+08，
+        // 比上界早约 72 小时。now 落在两者之间（+10000-01-01T16:00Z）：界内已
+        // 无不早于 now 的出现，[now, until] 内无解——完结返回 null；修复前这里
+        // 会先撞范围守护抛 IllegalStateException
+        val schedule =
+            schedule(utcMillis(LocalDate(2020, 1, 1)), interval = 1, unit = 1)
+
+        assertNull(
+            schedule.nextTarget(
+                Instant.parse("+10000-01-01T16:00:00Z"),
+                shanghai,
+                Instant.parse("+10000-06-01T00:00:00Z"),
+            ),
+        )
+
+        // 对照：不带 until 的同一查询仍是诚实的越界异常（答案不可表示）
+        assertFailsWith<IllegalStateException> {
+            schedule.nextTarget(Instant.parse("+10000-01-01T16:00:00Z"), shanghai)
+        }
+    }
+
+    @Test
+    fun `now仍在范围内但晚于最后一次出现同样完结`() {
+        // now 尚在支持范围内、但已晚于界内最后一次出现（每日 00:00 的最后出现
+        // 是 9999-12-31T00:00+08）：下一个出现已越出支持范围，[now, until] 内
+        // 不可能有界内出现——完结返回 null，不为有界查询抛越界异常
+        val schedule =
+            schedule(utcMillis(LocalDate(2020, 1, 1)), interval = 1, unit = 1)
+
+        assertNull(
+            schedule.nextTarget(zdt(9999, 12, 31, 12), shanghai, Instant.parse("+10000-06-01T00:00:00Z")),
+        )
+    }
+
+    @Test
+    fun `月重复在余量窗口内完结`() {
+        // 月/年路径同语义：now 在余量窗口内（最后一次月出现 9999-12-01T00:00+08
+        // 之后、上界之前）时，步进越过范围界按完结分流返回 null。锚点取 9998 年
+        // 缩短逐步推进的迭代数，语义与远期锚点一致
+        val schedule =
+            schedule(utcMillis(LocalDate(9998, 1, 1)), interval = 1, unit = 3)
+
+        assertNull(
+            schedule.nextTarget(
+                Instant.parse("+10000-01-01T16:00:00Z"),
+                shanghai,
+                Instant.parse("+10000-06-01T00:00:00Z"),
             ),
         )
     }
@@ -154,6 +209,27 @@ class ProjectionTest {
                 Instant.parse("+12000-01-01T00:00:00Z"),
                 shanghai,
                 Instant.parse("+15000-01-01T00:00:00Z"),
+            ),
+        )
+    }
+
+    @Test
+    fun `农历年重复在余量窗口内完结`() {
+        // 农历路径同语义：now 在余量窗口内时年表推进越过 9999，按完结分流返回
+        // null，不撞农历年表越界守护（对照上一用例越过上界的快路径完结）
+        val schedule =
+            schedule(
+                solarMillis(LunarDay.fromYmd(2020, 1, 1).getSolarDay()),
+                lunar = true,
+                interval = 1,
+                unit = 4,
+            )
+
+        assertNull(
+            schedule.nextTarget(
+                Instant.parse("+10000-01-01T16:00:00Z"),
+                shanghai,
+                Instant.parse("+10000-06-01T00:00:00Z"),
             ),
         )
     }

@@ -25,7 +25,7 @@ repositories {
 }
 
 dependencies {
-    implementation("io.github.kamiiroawase:nexttime:3.1.0")
+    implementation("io.github.kamiiroawase:nexttime:3.2.0")
 }
 ```
 
@@ -33,18 +33,18 @@ dependencies {
 
 | 消费平台 | 坐标 |
 |---|---|
-| Android | `io.github.kamiiroawase:nexttime-android:3.1.0` |
-| JVM | `io.github.kamiiroawase:nexttime-jvm:3.1.0` |
-| iOS 真机（arm64） | `io.github.kamiiroawase:nexttime-iosarm64:3.1.0` |
-| iOS 模拟器（arm64） | `io.github.kamiiroawase:nexttime-iossimulatorarm64:3.1.0` |
-| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:3.1.0` |
+| Android | `io.github.kamiiroawase:nexttime-android:3.2.0` |
+| JVM | `io.github.kamiiroawase:nexttime-jvm:3.2.0` |
+| iOS 真机（arm64） | `io.github.kamiiroawase:nexttime-iosarm64:3.2.0` |
+| iOS 模拟器（arm64） | `io.github.kamiiroawase:nexttime-iossimulatorarm64:3.2.0` |
+| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:3.2.0` |
 
 KMP 消费方在 commonMain 引用根坐标即可：
 
 ```kotlin
 kotlin {
     sourceSets {
-        commonMain.dependencies { implementation("io.github.kamiiroawase:nexttime:3.1.0") }
+        commonMain.dependencies { implementation("io.github.kamiiroawase:nexttime:3.2.0") }
     }
 }
 ```
@@ -53,7 +53,7 @@ kotlin {
 
 ```toml
 [versions]
-nexttime = "3.1.0"
+nexttime = "3.2.0"
 
 [libraries]
 nexttime = { module = "io.github.kamiiroawase:nexttime", version.ref = "nexttime" }
@@ -208,9 +208,9 @@ fun Schedule.anchor(zone: TimeZone = TimeZone.currentSystemDefault()): Instant?
 | `targetDay == -1`（未选） | 三个函数都返回 null |
 | 不重复（`repeatInterval = 0` 或 `repeatUnit = NONE`，任一即视为不重复） | 返回目标日组合时刻，**已过也原样返回过去时刻**，不推进 |
 | 重复正向 | 从锚点按周期推进到不早于 `now`；恰好等于 `now` 时不再推进 |
-| `until` 上限 | 重复出现晚于 `until` 时返回 null（序列单调，后续必然超限）；**锚点与非重复日程不受约束**——重复结束不能追溯取消锚点；`until` 早于 `now` 时直接返回 null，不为凑结论抛越界异常；带 `until` 且 `now` 晚于界内最后一个可能出现（9999-12-31 末秒组合加时区不连续余量）时同样直接返回 null——任何不早于 `now` 的出现必然界外，`[now, until]` 内不可能再有界内出现 |
+| `until` 上限 | 重复出现晚于 `until` 时返回 null（序列单调，后续必然超限）；**锚点与非重复日程不受约束**——重复结束不能追溯取消锚点；`until` 早于 `now`，或界内已无不早于 `now` 的出现（推算越过支持范围即完结；9999-12-31 末秒组合加 48 小时余量只是免推算的快路径上界，实际最后一次出现可能更早）时直接返回 null，不为凑结论抛越界异常——`[now, until]` 内不可能再有界内出现 |
 | 重复反向 | 不晚于 `before` 的最近一次出现（含恰等于）；`before` 早于锚点返回 null |
-| 推算越过 0001..9999 | 抛 `IllegalStateException`，不会死循环；例外——`previousTarget` 返回界内最后一次出现，`nextTarget` 带 `until` 且 `now` 已越过界内最后可能出现时完结返回 null（不带 `until` 的越界查询仍抛异常，答案不可表示） |
+| 推算越过 0001..9999 | 抛 `IllegalStateException`，不会死循环；例外——`previousTarget` 返回界内最后一次出现，`nextTarget` 带 `until` 时界内出现耗尽即完结返回 null（不带 `until` 的越界查询仍抛异常，答案不可表示） |
 | 时分秒全未选 | 按 00:00:00 组合（部分选择已在构造期拒绝，要整点须显式写全三个字段） |
 | 农历 + 天/周重复 | 与公历相同 |
 | 小时/分钟重复 | **真实时长格点**：出现 = 锚点 + 步数×间隔，跨日连续；`lunar` 无关；**不受 0001..9999 上界守护**（Instant 值域内任意推进） |
@@ -299,7 +299,7 @@ fun Countdown.zhText(): String {
 
 ## 测试
 
-166 个用例（`kotlin.test`，commonTest）覆盖公历/农历推算、闰月、月末收缩、DST 缺口/重叠/跳日、小时/分钟真实时长格点（含跨 DST 漂移与两千年长跨度）、范围边界与完结判定、正反对偶不变量、倒计时取整与日历分量；在 JVM、Android 单元测试与 wasm(Node) 三平台运行，iOS 模拟器由 macOS CI 执行。
+170 个用例（`kotlin.test`，commonTest）覆盖公历/农历推算、闰月、月末收缩、DST 缺口/重叠/跳日、小时/分钟真实时长格点（含跨 DST 漂移与两千年长跨度）、范围边界与完结判定、正反对偶不变量、倒计时取整与日历分量；在 JVM、Android 单元测试与 wasm(Node) 三平台运行，iOS 模拟器由 macOS CI 执行。
 
 ```
 ./gradlew build
@@ -307,6 +307,7 @@ fun Countdown.zhText(): String {
 
 ## 版本历史
 
+- **3.2.0**（2026-10-09）：`nextTarget` 带 `until` 的完结判定补全为「界内出现耗尽即返回 null」——此前仅当 now 越过「9999-12-31 末秒组合 + 48 小时余量」的保守上界才免推算完结，落在上界与实际最后一次界内出现之间（含仍在支持范围内、但已晚于最后一次出现）的 now 会撞范围守护抛 `IllegalStateException`，而此时答案可表示（null，重复已完结）；现公历/农历范围守护统一以内部异常分流，带 `until` 的查询按完结语义转 null，不带 `until` 的越界查询仍按契约抛异常（答案不可表示）；免推算快路径保留，其上界组合仅在带 `until` 时求值；农历月/年重复的锚点落在 1582-10-05..14（UTC，儒略→格里高利历换算缺口）时构造期拒绝，不再在推算期泄漏 tyme 的异常；农历 9999 年末月跨入公历 10000 年的候选按年表日数先行判定越界（不依赖 tyme 的越界报错形态）；发布链路加固——Release 工作流前置 macOS iOS 模拟器测试门禁、同 tag 重推改为排队不取消（Central 上传不可撤销）、macOS 侧补 wrapper 校验、Build 工作流支持手动触发；测试 154 → 170
 - **3.1.0**（2026-10-08）：`nextTarget` 的 `until` 早于 `now` 时直接返回 null（出现序列单调、重复已完结；此前 now 远到越过 0001..9999 范围界时会先撞范围守护抛 `IllegalStateException`）；农历月/年推算的年表缓存与月步进抽取为 next/previous 共用实现（行为不变，消除双实现漂移），锚点判定上提至三条路径之外统一；新增公开 API 二进制兼容守护（BCV，JVM 快照 + klib ABI，挂入 `build` 与两个 CI 工作流）；CI 供应链加固（action 按 commit SHA 固定、Dependabot 周更升级 PR、Release 工作流补 wrapper 校验、gradlew 带 git 可执行位）；新增 previousTarget 对偶不变量与 until 完结语义共 4 个测试
 - **3.0.0**（2026-10-03）：破坏性版本：发布渠道从 JitPack 迁到 Maven Central（组 `io.github.kamiiroawase`，根坐标可在 commonMain 直接引用），包名与 Android namespace 同步改为 `io.github.kamiiroawase.nexttime`；`Schedule` 构造期拒绝时分秒部分选择（此前静默按零点吞掉已选字段，须全选或全不选，要整点显式写全三个字段）；版本推导改为精确 tag 匹配（tag 之后的提交一律 0.0.0-SNAPSHOT，已发布号子不再沾染未发布提交）；Gradle 守护进程 JDK 与编译/测试工具链统一 21
 - **2.2.1**（2026-10-03）：维护版本：双参 `countdown` 重载委托统一实现（对外行为不变，消除双实现漂移风险）；发布工作流在发布前执行测试；`calendarCountdown` 与其他时区 API 一致加载 IANA 时区库；构建链升级（Gradle 9.8.0、AGP 9.4.1、Kotlin 2.4.20、compileSdk 37）并跟踪 gradle-daemon-jvm.properties

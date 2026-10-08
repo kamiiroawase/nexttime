@@ -45,6 +45,20 @@ private val MAX_SUPPORTED_EPOCH_DAYS = MAX_SUPPORTED_DATE.toEpochDays()
 private const val RANGE_MESSAGE =
     "Solar projection left the supported date range 0001-01-01..9999-12-31; the repeat rule may never match"
 
+/**
+ * 推算越过支持范围的内部信号（公历 0001..9999 与农历可靠年表共用）。作为
+ * [IllegalStateException] 的私有子类型存在：不带 until 的 nextTarget 查询把它
+ * 原样抛给调用方（契约异常，答案不可表示）；带 until 的有界查询在 nextTarget
+ * 顶层捕获并按完结语义转为 null——出现序列自锚点单调，步进越过范围界即界内
+ * 已无不早于 now 的出现。previousTarget 不经此分流：界前收尾返回，不触发守护。
+ */
+private class ProjectionRangeException(
+    message: String,
+) : IllegalStateException(message)
+
+/** 公历推算越界错误（[RANGE_MESSAGE]），完结分流语义见 [ProjectionRangeException]。 */
+private fun solarRangeError(): ProjectionRangeException = ProjectionRangeException(RANGE_MESSAGE)
+
 /** 按「日期 + 时刻 + 时区」组合时刻；夏令时缺口自动顺延、重叠取较早一次。 */
 private fun compose(
     date: LocalDate,
@@ -95,11 +109,12 @@ public fun Schedule.anchor(zone: TimeZone = TimeZone.currentSystemDefault()): In
  * 与农历路径一致。
  *
  * 推算年份（公历与农历）越过支持范围 0001..9999 时抛 [IllegalStateException]，
- * 不会死循环；锚点日期范围已在构造期校验。带 until 的完结判定先行返回 null、
- * 不触发越界异常：until 早于 now，或 now 晚于界内最后一个可能出现（9999-12-31
- * 末秒组合加时区不连续余量）——此时任何不早于 now 的出现必然界外，界内不可
- * 再有满足 [now, until] 的出现；不带 until 的同一查询越界仍抛异常（答案
- * 不可表示）。
+ * 不会死循环；锚点日期范围已在构造期校验。带 until 的完结判定一律返回 null、
+ * 不触发越界异常：until 早于 now，或界内已无不早于 now 的出现——出现序列自
+ * 锚点单调，推算步进越过范围界即界内无解（含 now 已越过界内最后一次实际出现
+ * 的场景；「9999-12-31 末秒组合加时区不连续余量」只是免推算的快路径上界，
+ * 实际最后一次界内出现可能早于它数日，落在其间同样完结）；不带 until 的同一
+ * 查询越界仍抛异常（答案不可表示）。
  *
  * 小时/分钟重复按**真实时长格点**（出现 = 锚点 + 步数×间隔，ISO 8601 的
  * time-based 惯例）：不经「日期 + 时刻 + 时区」组合，跨夏令时出现时刻的本地
@@ -110,10 +125,9 @@ public fun Schedule.anchor(zone: TimeZone = TimeZone.currentSystemDefault()): In
  * @param until 重复推进的可选上限：出现晚于 until 时返回 null（出现序列单调，
  * 后续必然全部超限，重复已完结）。仅约束重复推进——非重复日程与锚点本身
  * （尚在未来、原样返回的路径）不受 until 影响，重复结束不能追溯取消锚点；
- * until 早于 now 时任何不早于 now 的出现必然超限，直接返回 null；now 晚于
- * 界内最后一个可能出现（9999-12-31 末秒组合加时区不连续余量）时同理——
- * 界内不可能再有满足 [now, until] 的出现，直接返回 null（不带 until 的同一
- * 查询越界仍抛异常，答案不可表示）
+ * until 早于 now 时任何不早于 now 的出现必然超限，直接返回 null；界内出现
+ * 耗尽（推算越过支持范围）时同理——界内不可能再有满足 [now, until] 的出现，
+ * 直接返回 null（不带 until 的同一查询越界仍抛异常，答案不可表示）
  */
 public fun Schedule.nextTarget(
     now: Instant = Clock.System.now(),
@@ -161,80 +175,93 @@ public fun Schedule.nextTarget(
         }
     }
 
-    // 带 until 的完结判定，与上方「until 早于 now」的方向对偶：now 晚于界内最后
-    // 一个可能出现——9999-12-31 末秒的组合结果加时区不连续余量（缺口顺延至多把
-    // 末出现推后约 26 小时，48 小时冗余覆盖，见 ZONE_DISCONTINUITY_SLACK_SECONDS）
-    // ——时，任何不早于 now 的出现必然在支持范围外，[now, until] 内不可能再有
-    // 界内出现，重复已完结，直接返回 null 而非撞范围守护。仅限带 until 的有界
-    // 查询：不带 until 的越界查询答案不可表示，仍按契约抛 IllegalStateException；
-    // 小时/分钟为真实时长格点，已在上方分支返回，不受此限
-    val lastPossibleOccurrence =
-        compose(MAX_SUPPORTED_DATE, LocalTime(23, 59, 59), zone) + ZONE_DISCONTINUITY_SLACK_SECONDS.seconds
-    if (until != null && now > lastPossibleOccurrence) return null
+    // 带 until 的完结判定（免推算的快路径），与上方「until 早于 now」的方向对偶：
+    // now 晚于界内最后一个可能出现的保守上界——9999-12-31 末秒的组合结果加时区
+    // 不连续余量（缺口顺延至多把末出现推后约 26 小时，48 小时冗余覆盖，见
+    // ZONE_DISCONTINUITY_SLACK_SECONDS）——时，任何不早于 now 的出现必然在支持
+    // 范围外，无需推算直接返回 null。上界刻意保守而非精确：实际最后一次界内
+    // 出现可能早于它数日（无缺口顺延的时区），落在两者之间的 now 由下方范围
+    // 守护的分流兜底完结。仅限带 until 的有界查询：不带 until 的越界查询答案
+    // 不可表示，仍按契约抛 IllegalStateException；小时/分钟为真实时长格点，已在
+    // 上方分支返回，不受此限
+    if (until != null) {
+        val lastPossibleOccurrence =
+            compose(MAX_SUPPORTED_DATE, LocalTime(23, 59, 59), zone) + ZONE_DISCONTINUITY_SLACK_SECONDS.seconds
+        if (now > lastPossibleOccurrence) return null
+    }
 
-    if (!lunar || repeatUnit == RepeatUnit.DAY || repeatUnit == RepeatUnit.WEEK) {
-        if (repeatUnit == RepeatUnit.DAY || repeatUnit == RepeatUnit.WEEK) {
-            // 天/周无月末收缩，出现日期 = 锚点日 + 步数×周期天数：先按周期秒数估算
-            // 步数、留出时区不连续余量（见 ZONE_DISCONTINUITY_SLACK_SECONDS），
-            // 再小步前推到首个不早于 now 的出现，避免逐周期组合时区
-            // （跨数十年每日重复即数万次组合）
-            val periodDays =
-                if (repeatUnit == RepeatUnit.DAY) {
-                    repeatInterval.toLong()
-                } else {
-                    repeatInterval * 7L
+    // 范围守护的统一分流：出现序列自锚点起单调，推算步进越过支持范围即界内已无
+    // 不早于 now 的出现——带 until 的有界查询在 [now, until] 内不可能再有界内
+    // 出现，按完结语义返回 null（上一段快路径的精确兜底）；不带 until 的查询
+    // 答案不可表示，原样重抛契约异常
+    try {
+        if (!lunar || repeatUnit == RepeatUnit.DAY || repeatUnit == RepeatUnit.WEEK) {
+            if (repeatUnit == RepeatUnit.DAY || repeatUnit == RepeatUnit.WEEK) {
+                // 天/周无月末收缩，出现日期 = 锚点日 + 步数×周期天数：先按周期秒数估算
+                // 步数、留出时区不连续余量（见 ZONE_DISCONTINUITY_SLACK_SECONDS），
+                // 再小步前推到首个不早于 now 的出现，避免逐周期组合时区
+                // （跨数十年每日重复即数万次组合）
+                val periodDays =
+                    if (repeatUnit == RepeatUnit.DAY) {
+                        repeatInterval.toLong()
+                    } else {
+                        repeatInterval * 7L
+                    }
+                // epoch 秒差而非 Duration：Duration 表示分档（约 292 年内纳秒、更长
+                // 降为毫秒），整型直算不涉档位与分量换算
+                var step =
+                    maxOf(
+                        1L,
+                        (now.epochSeconds - anchor.epochSeconds - ZONE_DISCONTINUITY_SLACK_SECONDS) /
+                            (periodDays * 86400),
+                    )
+                while (true) {
+                    val days = step * periodDays
+                    if (days > MAX_SUPPORTED_EPOCH_DAYS - date.toEpochDays()) throw solarRangeError()
+                    val next =
+                        compose(date + DatePeriod(days = days.toInt()), time, zone)
+                    if (next >= now) return capped(next, until)
+                    step++
                 }
-            // epoch 秒差而非 Duration：Duration 表示分档（约 292 年内纳秒、更长
-            // 降为毫秒），整型直算不涉档位与分量换算
-            var step =
-                maxOf(
-                    1L,
-                    (now.epochSeconds - anchor.epochSeconds - ZONE_DISCONTINUITY_SLACK_SECONDS) /
-                        (periodDays * 86400),
-                )
+            }
+
+            // 月/年重复以锚点日为基准收缩回弹（1/31 → 2/28 → 3/31），须逐步自锚点推进；
+            // 迭代数 = 日历距离 ÷ 间隔，随锚点距今变远线性增长：数十年数百次，最坏
+            // （公元 1 年锚点月重复推到 9999 年）约 12 万次，实测 JVM 数十毫秒——
+            // 量级有界，无需直算快路径
+            var step = repeatInterval.toLong()
             while (true) {
-                val days = step * periodDays
-                check(days <= MAX_SUPPORTED_EPOCH_DAYS - date.toEpochDays()) { RANGE_MESSAGE }
-                val next =
-                    compose(date + DatePeriod(days = days.toInt()), time, zone)
+                val nextDate =
+                    when (repeatUnit) {
+                        RepeatUnit.MONTH -> {
+                            if (date.year * 12L + date.month.ordinal + step > 9999L * 12 + 11) throw solarRangeError()
+                            date + DatePeriod(months = step.toInt())
+                        }
+
+                        else -> {
+                            if (date.year + step > 9999L) throw solarRangeError()
+                            date + DatePeriod(years = step.toInt())
+                        }
+                    }
+                val next = compose(nextDate, time, zone)
                 if (next >= now) return capped(next, until)
-                step++
+                step += repeatInterval
             }
         }
 
-        // 月/年重复以锚点日为基准收缩回弹（1/31 → 2/28 → 3/31），须逐步自锚点推进；
-        // 迭代数 = 日历距离 ÷ 间隔，随锚点距今变远线性增长：数十年数百次，最坏
-        // （公元 1 年锚点月重复推到 9999 年）约 12 万次，实测 JVM 数十毫秒——
-        // 量级有界，无需直算快路径
-        var step = repeatInterval.toLong()
-        while (true) {
-            val nextDate =
-                when (repeatUnit) {
-                    RepeatUnit.MONTH -> {
-                        check(date.year * 12L + date.month.ordinal + step <= 9999L * 12 + 11) { RANGE_MESSAGE }
-                        date + DatePeriod(months = step.toInt())
-                    }
-
-                    else -> {
-                        check(date.year + step <= 9999L) { RANGE_MESSAGE }
-                        date + DatePeriod(years = step.toInt())
-                    }
-                }
-            val next = compose(nextDate, time, zone)
-            if (next >= now) return capped(next, until)
-            step += repeatInterval
-        }
+        // 锚点日期范围已在构造期校验（0001..9999），换算出的农历年落在可靠年表
+        // 范围内，无需在此重复拦截
+        return nextLunarTarget(
+            SolarDay.fromYmd(date.year, date.month.ordinal + 1, date.day).getLunarDay(),
+            time,
+            now,
+            zone,
+            until,
+        )
+    } catch (e: ProjectionRangeException) {
+        if (until == null) throw e
+        return null
     }
-
-    // 锚点日期范围已在构造期校验（0001..9999），换算出的农历年落在可靠年表
-    // 范围内，无需在此重复拦截
-    return nextLunarTarget(
-        SolarDay.fromYmd(date.year, date.month.ordinal + 1, date.day).getLunarDay(),
-        time,
-        now,
-        zone,
-        until,
-    )
 }
 
 /**
@@ -524,9 +551,12 @@ private fun Schedule.previousLunarTarget(
     }
 }
 
-/** 农历年表越界错误：越界年表数据不可信（tyme 静默返回错值），且规则可能永远无法命中。 */
-private fun lunarRangeError(): IllegalStateException =
-    IllegalStateException(
+/**
+ * 农历年表越界错误：越界年表数据不可信（tyme 静默返回错值），且规则可能永远
+ * 无法命中。带 until 查询的完结分流见 [ProjectionRangeException]。
+ */
+private fun lunarRangeError(): ProjectionRangeException =
+    ProjectionRangeException(
         "Lunar projection left the reliable lunar calendar range $MIN_LUNAR_YEAR..$MAX_LUNAR_YEAR; the repeat rule may never match",
     )
 

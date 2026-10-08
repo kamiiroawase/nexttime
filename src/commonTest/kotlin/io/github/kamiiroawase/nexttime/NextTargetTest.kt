@@ -423,16 +423,18 @@ class NextTargetTest {
     }
 
     @Test
-    fun `带until的界内now推算越界仍抛异常`() {
-        // 完结判定的防过扩：now 在界内（9999-12-15）、下一出现 10000-01 越界时，
-        // 界内无法证明 [now, until] 无出现（now 未越过界内最后可能出现），
-        // 带 until 与不带 until 一样按契约抛 IllegalStateException
+    fun `带until的界内now晚于最后一次出现完结返回null`() {
+        // 界内出现耗尽的完结判定：now 在界内（9999-12-15）且已晚于界内最后一次
+        // 出现（月重复锚点 9999-12-01，下一出现 10000-01 已越界）时，出现序列
+        // 单调即证明 [now, until] 内不可能再有界内出现——带 until 完结返回 null
+        // （此前的保守近似下这里会抛 IllegalStateException）；不带 until 仍按
+        // 契约抛异常（答案不可表示）
         val schedule =
             schedule(utcMillis(LocalDate(9999, 12, 1)), interval = 1, unit = 3)
 
-        assertFailsWith<IllegalStateException> {
-            schedule.nextTarget(zdt(9999, 12, 15), shanghai, Instant.parse("+12000-01-01T00:00:00Z"))
-        }
+        assertNull(
+            schedule.nextTarget(zdt(9999, 12, 15), shanghai, Instant.parse("+12000-01-01T00:00:00Z")),
+        )
         assertFailsWith<IllegalStateException> {
             schedule.nextTarget(zdt(9999, 12, 15), shanghai)
         }
