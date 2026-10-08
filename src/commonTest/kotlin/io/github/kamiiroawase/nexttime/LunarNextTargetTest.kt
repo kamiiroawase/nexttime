@@ -525,6 +525,50 @@ class LunarNextTargetTest {
     }
 
     @Test
+    fun `农历月年重复锚点落在1582历法缺口日构造即拒`() {
+        // 1582-10-05..14（UTC）是儒略→格里高利历换算缺口，农历历表（tyme）不含
+        // 这十天：农历月/年重复须把锚点换算为农历月日，构造期快速拒绝，不得留到
+        // 推算期泄漏 tyme 的 IllegalArgumentException（illegal solar day）
+        assertFailsWith<IllegalArgumentException> {
+            schedule(utcMillis(LocalDate(1582, 10, 5)), lunar = true, interval = 1, unit = 3)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            schedule(utcMillis(LocalDate(1582, 10, 14)), lunar = true, interval = 1, unit = 4)
+        }
+        // 拒绝条件与推算路径的换算条件精确一致：农历天/周重复走公历路径、非农历
+        // 月重复、无间隔、未选日均不受限
+        val dayRepeat =
+            schedule(utcMillis(LocalDate(1582, 10, 10)), lunar = true, interval = 1, unit = 1)
+        schedule(utcMillis(LocalDate(1582, 10, 10)), lunar = true, interval = 1, unit = 2)
+        schedule(utcMillis(LocalDate(1582, 10, 10)), interval = 1, unit = 3)
+        schedule(utcMillis(LocalDate(1582, 10, 10)), lunar = true, interval = 0, unit = 3)
+        schedule(targetDay = -1L, lunar = true, interval = 1, unit = 3)
+
+        // 缺口日锚点的农历天重复端到端可用（不触发农历换算）
+        assertEquals(zdt(1582, 10, 11), dayRepeat.nextTarget(zdt(1582, 10, 10) + 1.days, shanghai))
+    }
+
+    @Test
+    fun `农历年重复1582缺口前夜锚点正常推算`() {
+        // 缺口前最后一天 1582-10-04（儒略历，tyme 历表合法）= 农历 1582/9/18；
+        // 年重复下一出现为农历 1583/9/18，往返换算落在 tyme 历表的 1583-11-01
+        val schedule =
+            schedule(
+                utcMillis(LocalDate(1582, 10, 4)),
+                lunar = true,
+                interval = 1,
+                unit = 4,
+            )
+
+        val target = schedule.nextTarget(instantOf(LocalDate(1582, 10, 4) + 1), shanghai)!!
+
+        val targetLunar = lunarOf(target, shanghai)
+        assertEquals(1583, targetLunar.year)
+        assertEquals(9, targetLunar.month)
+        assertEquals(18, targetLunar.day)
+    }
+
+    @Test
     fun `负毫秒农历锚点1949年国庆年重复保持农历月日`() {
         // 1949-10-01 = 农历己丑年八月初十；年重复推到 2026 年仍为农历八月初十
         // （2026/8/10 = 公历 2026-09-20，在 now 之后）
@@ -740,5 +784,75 @@ class LunarNextTargetTest {
 
         assertEquals(anchor, dateOf(target, shanghai))
         assertEquals(LocalTime(0, 0), timeOf(target, shanghai))
+    }
+
+    @Test
+    fun `农历月重复末月候选落入公历10000年抛年表越界`() {
+        // 农历 9999 年腊月初一已是公历 9999-12-30：冬月十五锚点月重复的下一候选
+        // 腊月十五落入公历 10000 年，tyme 对此抛 IllegalArgumentException（illegal
+        // solar year），须转译为契约化的年表越界 IllegalStateException
+        val anchor = LunarDay.fromYmd(9999, 11, 15).getSolarDay()
+        val schedule =
+            schedule(
+                solarMillis(anchor),
+                lunar = true,
+                interval = 1,
+                unit = 3,
+            )
+
+        val now = instantOf(solarDate(anchor) + 1)
+
+        assertFailsWith<IllegalStateException> { schedule.nextTarget(now, shanghai) }
+    }
+
+    @Test
+    fun `农历年重复腊月候选落入公历10000年抛年表越界`() {
+        // 年重复同理：早年腊月十五锚点逐年推进，农历 9999 年的候选落入公历
+        // 10000 年，同样不得泄漏 tyme 的 IllegalArgumentException
+        val anchor = LunarDay.fromYmd(9996, 12, 15).getSolarDay()
+        val schedule =
+            schedule(
+                solarMillis(anchor),
+                lunar = true,
+                interval = 1,
+                unit = 4,
+            )
+
+        assertFailsWith<IllegalStateException> { schedule.nextTarget(zdt(9999, 7, 1), shanghai) }
+    }
+
+    @Test
+    fun `农历月重复腊月月初候选仍在界内正常命中`() {
+        // 对偶钉住界内边界：冬月初一锚点（公历 9999-11-30）月重复，下一候选
+        // 腊月初一 = 公历 9999-12-30，是年表内最后一批界内格点，正常返回不抛
+        val schedule =
+            schedule(
+                solarMillis(LunarDay.fromYmd(9999, 11, 1).getSolarDay()),
+                lunar = true,
+                interval = 1,
+                unit = 3,
+            )
+
+        val target = schedule.nextTarget(zdt(9999, 12, 1), shanghai)!!
+
+        assertEquals(solarDate(LunarDay.fromYmd(9999, 12, 1).getSolarDay()), dateOf(target, shanghai))
+    }
+
+    @Test
+    fun `农历月重复末月候选恰为支持范围末日照常命中`() {
+        // 冬月初二锚点（公历 9999-12-01）月重复的下一候选腊月初二 = 公历 9999-12-31，
+        // 恰为支持范围最后一天：界判定按年表日数定位，恰在界上的候选不得误判越界
+        val anchor = LunarDay.fromYmd(9999, 11, 2).getSolarDay()
+        val schedule =
+            schedule(
+                solarMillis(anchor),
+                lunar = true,
+                interval = 1,
+                unit = 3,
+            )
+
+        val target = schedule.nextTarget(instantOf(solarDate(anchor) + 1), shanghai)!!
+
+        assertEquals(solarDate(LunarDay.fromYmd(9999, 12, 2).getSolarDay()), dateOf(target, shanghai))
     }
 }

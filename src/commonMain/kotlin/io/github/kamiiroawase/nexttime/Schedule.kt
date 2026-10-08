@@ -21,6 +21,22 @@ private val MAX_TARGET_DAY_MILLIS =
         .toEpochMilliseconds() + 86_399_999L
 
 /**
+ * 农历月/年重复的锚点禁区（UTC 日期 1582-10-05..14 当天任意毫秒）：儒略→格里
+ * 高利历换算缺口，农历历表（tyme）不含这十天，锚点无法换算为农历月日，构造期
+ * 拒绝。与推算路径的触发条件精确一致：仅 lunar + interval > 0 + 月/年单位的
+ * 日程须做农历换算，天/周/小时/分钟重复与非农历日程不受限。
+ */
+private val JULIAN_GREGORIAN_GAP_START_MILLIS =
+    LocalDate(1582, 10, 5)
+        .atStartOfDayIn(TimeZone.UTC)
+        .toEpochMilliseconds()
+
+private val JULIAN_GREGORIAN_GAP_END_MILLIS =
+    LocalDate(1582, 10, 14)
+        .atStartOfDayIn(TimeZone.UTC)
+        .toEpochMilliseconds() + 86_399_999L
+
+/**
  * 倒计时日程的目标时间描述：锚点目标日、时刻与重复规则。
  *
  * 构造时校验全部字段，非法取值抛 [IllegalArgumentException]：
@@ -28,7 +44,10 @@ private val MAX_TARGET_DAY_MILLIS =
  * 的毫秒值——0 表示 1970-01-01 当天、负毫秒表示 1970 年之前，均合法；时分秒
  * 仅允许 -1（未选）或各自合法区间，且须**全选或全不选**——部分选择（如只设
  * 时）曾静默按零点吞掉已选字段，现构造期拒绝；[repeatInterval] 须在
- * 0..[MAX_REPEAT_INTERVAL]；[repeatUnit] 须为 [RepeatUnit] 常量之一。
+ * 0..[MAX_REPEAT_INTERVAL]；[repeatUnit] 须为 [RepeatUnit] 常量之一。农历月/年
+ * 重复（lunar 且 interval > 0 且单位为月/年）的 [targetDay] 另不得落在
+ * 1582-10-05..14（UTC）——儒略→格里高利历换算缺口，农历历表不含这十天，
+ * 锚点无法换算为农历月日。
  *
  * @param lunar 目标日按农历解释：月/年重复沿农历推进，天/周/小时/分钟重复与公历无异
  * @param leapCount 农历时闰月是否参与重复推算
@@ -64,6 +83,19 @@ public data class Schedule(
         }
         require(repeatInterval in 0..MAX_REPEAT_INTERVAL) { "repeatInterval must be in 0..$MAX_REPEAT_INTERVAL, got: $repeatInterval" }
         require(repeatUnit in RepeatUnit.NONE..RepeatUnit.MINUTE) { "repeatUnit must be a RepeatUnit constant, got: $repeatUnit" }
+        // 农历月/年重复须把锚点换算为农历月日：锚点落在 1582 历法缺口内时换算必
+        // 失败（tyme 的 SolarDay 直接拒绝这十天），构造期快速拒绝而非推算期泄漏
+        // tyme 的 IllegalArgumentException（illegal solar day）
+        require(
+            !(
+                lunar && repeatInterval > 0 &&
+                    (repeatUnit == RepeatUnit.MONTH || repeatUnit == RepeatUnit.YEAR) &&
+                    targetDay in JULIAN_GREGORIAN_GAP_START_MILLIS..JULIAN_GREGORIAN_GAP_END_MILLIS
+            ),
+        ) {
+            "lunar month/year repeat cannot anchor on 1582-10-05..14 (UTC), the Julian-to-Gregorian " +
+                "calendar switch gap absent from the lunar calendar table, got targetDay: $targetDay"
+        }
     }
 
     public companion object {

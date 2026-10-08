@@ -132,6 +132,43 @@ class PreviousTargetTest {
     }
 
     @Test
+    fun `农历末月候选落入公历10000年返回界内最后一次出现`() {
+        // 农历 9999 年腊月大部分落在公历 10000 年：冬月十五锚点（公历 9999-12-14）
+        // 月重复推到腊月十五时候选出界，按界内最后一次出现收尾（冬月十五本身），
+        // 不得泄漏 tyme 的 IllegalArgumentException
+        val anchor = LunarDay.fromYmd(9999, 11, 15).getSolarDay()
+        val schedule =
+            schedule(
+                solarMillis(anchor),
+                lunar = true,
+                interval = 1,
+                unit = 3,
+            )
+
+        val occurrence = schedule.previousTarget(zdt(9999, 12, 31) + 1.days, shanghai)!!
+
+        assertEquals(solarDate(anchor), dateOf(occurrence, shanghai))
+    }
+
+    @Test
+    fun `农历跨世纪月重复before超界返回界内最后格点`() {
+        // 锚点在农历 9998 年、before 超出支持范围：跳过区只记录年份 < 9999 的格点，
+        // 农历 9999 年冬月十五（公历 9999-12-14）是最后一个界内出现，其后的腊月
+        // 十五落入公历 10000 年，不得参与组合
+        val schedule =
+            schedule(
+                solarMillis(LunarDay.fromYmd(9998, 11, 15).getSolarDay()),
+                lunar = true,
+                interval = 1,
+                unit = 3,
+            )
+
+        val occurrence = schedule.previousTarget(zdt(9999, 12, 31) + 1.days, shanghai)!!
+
+        assertEquals(solarDate(LunarDay.fromYmd(9999, 11, 15).getSolarDay()), dateOf(occurrence, shanghai))
+    }
+
+    @Test
     fun `previousTarget 与 nextTarget 互为对偶`() {
         val schedules =
             listOf(

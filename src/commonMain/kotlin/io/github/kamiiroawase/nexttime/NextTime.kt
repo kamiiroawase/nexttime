@@ -344,7 +344,10 @@ public fun countdown(
  * 只在恰有该闰月的格点年命中，落在格点外的真实闰月年会被跳过。
  *
  * 推算限于可靠农历年表（含内层逐月推进），越界抛 [IllegalStateException]，
- * 不会死循环。长跨度走快路径：早于 now 两年的农历年跳过候选换算，年表按年缓存。
+ * 不会死循环；农历 9999 年的末月跨入公历 10000 年，候选先按年表日数定位、
+ * 拉出支持范围即按越界处理（不依赖 tyme 对越界换算的报错形态——其年表越界
+ * 的另一形态是静默返回错值）。长跨度走快路径：早于 now 两年的农历年跳过候选
+ * 换算，年表按年缓存。
  *
  * 锚点（第一次出现）由调用方在进入前处理：anchor 不早于 now 时已提前返回，
  * 函数内的候选均为非锚点出现，返回值一律受 until 封顶。
@@ -377,6 +380,12 @@ private fun Schedule.nextLunarTarget(
         if (candidate != 0 && year > nowYear - 2) {
             val day = minOf(first.day, LunarMonth.fromYm(year, candidate).getDayCount())
 
+            // 农历 9999 年的末月跨入公历 10000 年：候选先按年表日数定位（见
+            // LunarYearTable.beyondSupportedRange），拉出支持范围即按年表越界处理，
+            // 不把越界换算交给 tyme——其年表越界的另一形态是静默返回错值，防线
+            // 不能依赖它抛异常
+            if (table.beyondSupportedRange(candidate, day)) throw lunarRangeError()
+
             val solar = LunarDay.fromYmd(year, candidate, day).getSolarDay()
 
             val target = compose(LocalDate(solar.year, solar.month, solar.day), time, zone)
@@ -404,7 +413,8 @@ private fun Schedule.nextLunarTarget(
  * 换成「最后一个不晚于 before」：早于 before 两年的农历年跳过候选换算、只记录
  * 格点（这些候选必然不晚于 before，留作回退位），组合区一旦出现晚于 before 的
  * 候选即返回上一个不晚于者。推算至年表上界仍未晚于 before 时返回界内最后一次
- * 出现，不抛异常（出现序列在界内有尽）。
+ * 出现，不抛异常（出现序列在界内有尽）；农历 9999 年末月落入公历 10000 年的
+ * 界外候选同此处理——按年表日数先行定位判定，界外者不参与组合。
  */
 private fun Schedule.previousLunarTarget(
     first: LunarDay,
@@ -417,12 +427,28 @@ private fun Schedule.previousLunarTarget(
 
     val table = LunarYearTable()
 
-    // 日收缩 + 历法换算 + 组合；跳过区回退时也要组合记录的格点，单处复用
+    // 日收缩 + 历法换算 + 组合；跳过区回退时也要组合记录的格点，单处复用。仅用于
+    // 界内格点（初始锚点自带界内公历日，跳过区只记录年份 < 9999 的格点，农历年
+    // 9998 及更早整年落在支持范围内）
     fun composeGrid(
         y: Int,
         m: Int,
     ): Instant {
         val day = minOf(first.day, LunarMonth.fromYm(y, m).getDayCount())
+        val solar = LunarDay.fromYmd(y, m, day).getSolarDay()
+        return compose(LocalDate(solar.year, solar.month, solar.day), time, zone)
+    }
+
+    // 组合候选格点：农历 9999 年末月跨入公历 10000 年的界外候选返回 null，由
+    // 调用方按界外处理。界先按年表日数定位（见 LunarYearTable.beyondSupportedRange），
+    // 不把越界换算交给 tyme——其年表越界的另一形态是静默返回错值，防线不能
+    // 依赖它抛异常
+    fun composeCandidate(
+        y: Int,
+        m: Int,
+    ): Instant? {
+        val day = minOf(first.day, LunarMonth.fromYm(y, m).getDayCount())
+        if (table.beyondSupportedRange(m, day)) return null
         val solar = LunarDay.fromYmd(y, m, day).getSolarDay()
         return compose(LocalDate(solar.year, solar.month, solar.day), time, zone)
     }
@@ -447,13 +473,17 @@ private fun Schedule.previousLunarTarget(
         if (candidate != 0) {
             // 与 nextLunarTarget 的跳过条件对偶：农历年 Y 的候选最晚落在公历次年
             // 春节前（约次年 2 月中），Y 早于 before 两年及以上时候选必然不晚于
-            // before，跳过昂贵的历法换算只记录格点（跨数十年即数百次换算）
-            if (year <= beforeYear - 2) {
+            // before，跳过昂贵的历法换算只记录格点（跨数十年即数百次换算）。
+            // 9999 年不进跳过区——它的末月候选可落入公历 10000 年，须组合出时刻
+            // 才能判定界内界外，界外格点不得留在回退位
+            if (year <= beforeYear - 2 && year < MAX_LUNAR_YEAR) {
                 pendingYear = year
                 pendingMonth = candidate
             } else {
-                val target = composeGrid(year, candidate)
-                if (target > before) return lastBelow ?: composeGrid(pendingYear, pendingMonth)
+                // 界外候选视同晚于 before：出现序列此后必然全部界外，返回上一个
+                // 界内出现即「界内最后一次出现」
+                val target = composeCandidate(year, candidate)
+                if (target == null || target > before) return lastBelow ?: composeGrid(pendingYear, pendingMonth)
                 lastBelow = target
             }
         }
@@ -487,7 +517,7 @@ private class LunarYearTable {
     var year: Int = Int.MIN_VALUE
         private set
 
-    /** 当年闰月（-m 表示闰 m 月，0 表示无闰月） */
+    /** 当年闰月（闰 m 月为 m，0 表示无闰月；tyme 的 getLeapMonth 恒非负，负数月序仅存在于 LunarMonth/LunarDay 的月份值） */
     var leapMonth: Int = 0
         private set
 
@@ -507,6 +537,27 @@ private class LunarYearTable {
         leapMonth = lunarYear.getLeapMonth()
         months = lunarYear.getMonths()
         normalMonths = months.filter { it.getMonthWithLeap() > 0 }
+    }
+
+    /**
+     * 当年候选（月 + 收缩后日）是否越出支持范围 9999-12-31。农历年 ≤ 9998 的
+     * 全部日子都早于正月初一(9999)——春节恒落在公历 1/21..2/21，结构性地界内；
+     * 只有 9999 年的末月可跨入公历 10000 年，自正月初一累加月表天数定位
+     * （9999 年远在 1582 历法缺口之后，纯日数推算无历法偏差）。界判定只做
+     * 日数算术，不把越界换算交给 tyme——其年表越界的另一形态是静默返回错值。
+     */
+    fun beyondSupportedRange(
+        month: Int,
+        day: Int,
+    ): Boolean {
+        if (year != MAX_LUNAR_YEAR) return false
+        val cny = LunarDay.fromYmd(year, 1, 1).getSolarDay()
+        var start = LocalDate(cny.year, cny.month, cny.day).toEpochDays()
+        for (m in months) {
+            if (m.getMonthWithLeap() == month) break
+            start += m.getDayCount()
+        }
+        return start + day - 1 > MAX_SUPPORTED_EPOCH_DAYS
     }
 }
 
@@ -546,11 +597,12 @@ private fun stepLunarMonth(
     }
 
     if (index in 0 until months.size - 1) {
-        // 月表末尾可能是次年正月：年份须与月份一并采用，否则 year 不推进、
-        // 在当年正月与腊月间死循环
+        // 月表项自带所属农历年，后继的年份与月份须一并采用、不能沿用当前 year——
+        // 否则跨年处的年份不推进、在当年正月与腊月间死循环
         val next = months[index + 1]
         return next.year to next.getMonthWithLeap()
     }
+    // 末项（当年腊月，tyme4kt 的月表只含当年 12/13 个月）的后继是次年正月
     return year + 1 to 1
 }
 
