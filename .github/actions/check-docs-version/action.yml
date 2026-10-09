@@ -1,0 +1,89 @@
+# Shared release gate for the documented version coordinates, identical across the
+# kamiiroawase repos; strategy differences live in the inputs, not the code:
+#   docs              files that must mention the tag's version; with reverse: true
+#                     they must also have dropped the previous tag's version
+#   changelog         optional file that must carry a section for the tag's version
+#                     (a changelog keeps the old versions by design, so no reverse
+#                     check ever runs against it)
+#   coordinate-prefix optional literal expected right before the version, for docs
+#                     that quote it inside a dependency snippet (zonepicker:1.2.3)
+# Local composite action, not a third-party one: the Release workflow that calls it
+# holds the Central credentials and the GPG secret key, so it pulls in no external
+# code and stays covered by the SHA-pinning policy
+name: check-docs-version
+description: Fail the release when the docs do not reference the tag's version
+
+inputs:
+  docs:
+    description: Space-separated doc files that must mention the tag's version
+    required: true
+  changelog:
+    description: Optional changelog file that must carry a section for the tag's version
+    required: false
+    default: ''
+  reverse:
+    description: When 'true', the previous tag's version must no longer appear in docs
+    required: false
+    default: 'false'
+  coordinate-prefix:
+    description: Optional literal anchor expected right before the version (e.g. 'zonepicker:')
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - name: Check documented version coordinates match the tag
+      shell: bash
+      env:
+        DOCS: ${{ inputs.docs }}
+        CHANGELOG: ${{ inputs.changelog }}
+        REVERSE: ${{ inputs.reverse }}
+        COORDINATE_PREFIX: ${{ inputs.coordinate-prefix }}
+      run: |
+        VERSION="${GITHUB_REF_NAME#v}"
+        test -n "$VERSION" || { echo "GITHUB_REF_NAME ($GITHUB_REF_NAME) is not a v* tag"; exit 1; }
+
+        # The docs quote the released coordinates; a forgotten bump ships stale
+        # versions to every reader until someone notices. Fail the release instead.
+        # The match is token-anchored — a plain fixed-string grep would hit
+        # substrings (1.1.0 inside 11.1.0 or 1.1.0.1)
+        mentions_version() {
+          if [ -n "$COORDINATE_PREFIX" ]; then
+            grep -Eq "${COORDINATE_PREFIX}${1//./\\.}([^0-9.]|$)" "$2"
+          else
+            grep -Eq "(^|[^0-9.])${1//./\\.}([^0-9.]|$)" "$2"
+          fi
+        }
+
+        for doc in $DOCS; do
+          mentions_version "$VERSION" "$doc" || {
+            echo "$doc does not mention version $VERSION — bump the documented coordinates"
+            exit 1
+          }
+        done
+
+        if [ -n "$CHANGELOG" ]; then
+          mentions_version "$VERSION" "$CHANGELOG" || {
+            echo "$CHANGELOG has no $VERSION section — move Unreleased under it"
+            exit 1
+          }
+        fi
+
+        # Reverse check only against docs: a changelog (or a README version-history
+        # section) keeps every old version by design, so requiring the previous one
+        # to disappear would fail every release
+        if [ "$REVERSE" = "true" ]; then
+          PREV_TAG="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
+          if [ -n "$PREV_TAG" ]; then
+            PREV_VERSION="${PREV_TAG#v}"
+            for doc in $DOCS; do
+              if mentions_version "$PREV_VERSION" "$doc"; then
+                echo "$doc still mentions the previous version $PREV_VERSION — bump the documented coordinates"
+                exit 1
+              fi
+            done
+          fi
+        fi
+
+        echo "Documented version coordinates verified: $VERSION"

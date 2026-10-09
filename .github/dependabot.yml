@@ -12,6 +12,16 @@ updates:
       gradle:
         patterns: ["*"]
 
+  # gradle 只覆盖版本目录与构建脚本；gradle-version 让 wrapper 的
+  # distributionUrl 跟进新的 Gradle 发行版
+  - package-ecosystem: gradle-version
+    directory: "/"
+    schedule:
+      interval: weekly
+    groups:
+      gradle-version:
+        patterns: ["*"]
+
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
