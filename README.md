@@ -20,7 +20,7 @@ repositories { mavenCentral() }
 dependencies {
     // KMP 消费方在 commonMain 引用根坐标（Gradle module metadata 自动解析平台变体）；
     // 需要钉住具体变体时见下表
-    implementation("io.github.kamiiroawase:nexttime:3.2.0")
+    implementation("io.github.kamiiroawase:nexttime:3.2.1")
 }
 ```
 
@@ -28,17 +28,17 @@ dependencies {
 
 | 消费平台 | 坐标 |
 |---|---|
-| Android | `io.github.kamiiroawase:nexttime-android:3.2.0` |
-| JVM | `io.github.kamiiroawase:nexttime-jvm:3.2.0` |
-| iOS 真机（arm64） | `io.github.kamiiroawase:nexttime-iosarm64:3.2.0` |
-| iOS 模拟器（arm64） | `io.github.kamiiroawase:nexttime-iossimulatorarm64:3.2.0` |
-| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:3.2.0` |
+| Android | `io.github.kamiiroawase:nexttime-android:3.2.1` |
+| JVM | `io.github.kamiiroawase:nexttime-jvm:3.2.1` |
+| iOS 真机（arm64） | `io.github.kamiiroawase:nexttime-iosarm64:3.2.1` |
+| iOS 模拟器（arm64） | `io.github.kamiiroawase:nexttime-iossimulatorarm64:3.2.1` |
+| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:3.2.1` |
 
 版本目录写法：
 
 ```toml
 [versions]
-nexttime = "3.2.0"
+nexttime = "3.2.1"
 
 [libraries]
 nexttime = { module = "io.github.kamiiroawase:nexttime", version.ref = "nexttime" }
