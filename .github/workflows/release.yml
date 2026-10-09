@@ -94,6 +94,28 @@ jobs:
             exit 1
           }
 
+      # 发布凭据存在性守门，与上方 README 坐标守门同理：配置缺失在长构建之前大声
+      # 失败。缺 Portal 令牌时拖到上传阶段才 401；缺私钥最隐蔽——build.gradle.kts
+      # 的 signingKey 守卫把空值视为未配置、静默跳过 signAllPublications，
+      # unsigned 构件上传后才被 Central 拒收，报错既晚又不指向根因。只断言非空、
+      # 不回显任何值；KeyId 与私钥口令不在守门范围——口令为空对应无口令私钥，
+      # 属合法配置
+      - name: Check publishing secrets are configured
+        env:
+          ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.ORG_GRADLE_PROJECT_mavenCentralUsername }}
+          ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.ORG_GRADLE_PROJECT_mavenCentralPassword }}
+          ORG_GRADLE_PROJECT_signingInMemoryKey: ${{ secrets.ORG_GRADLE_PROJECT_signingInMemoryKey }}
+        run: |
+          for secret in \
+            ORG_GRADLE_PROJECT_mavenCentralUsername \
+            ORG_GRADLE_PROJECT_mavenCentralPassword \
+            ORG_GRADLE_PROJECT_signingInMemoryKey; do
+            test -n "${!secret}" || {
+              echo "$secret is missing or empty — configure it in the repository's Actions secrets; publishing cannot proceed"
+              exit 1
+            }
+          done
+
       - uses: gradle/actions/wrapper-validation@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
 
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
