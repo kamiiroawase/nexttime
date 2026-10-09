@@ -77,15 +77,17 @@ jobs:
           # 完整克隆：版本由 v* tag 精确推导，浅克隆取不到 tag
           fetch-depth: 0
 
-      # README 记录着发布坐标（引入章节的版本表与示例，共多处）：忘了 bump 就会把
-      # 旧版本号发给每一位读者，直到有人注意到。改为让发布失败：tag 版本必须在
-      # README 中出现。检查逻辑在共享的 check-docs-version action 里（token 锚定
-      # 匹配，防 1.1.0 命中 11.1.0 之类的子串）；此处不开 reverse——版本历史一节
-      # 按设计保留全部旧版本号，只有正向出现检查有区分度
+      # 中英两份 README 记录着发布坐标（引入章节的版本表与示例，共多处）：忘了 bump
+      # 就会把旧版本号发给每一位读者，直到有人注意到。改为让发布失败：tag 版本必须
+      # 在两份 README 中出现、上一版本号必须已消失（版本历史不进 README，历史明细
+      # 由 Release 工作流自动生成的 release notes 承载）。检查逻辑在共享的
+      # check-docs-version action 里（token 锚定匹配，防 1.1.0 命中 11.1.0 之类的
+      # 子串）
       - name: Check README version coordinates match the tag
         uses: ./.github/actions/check-docs-version
         with:
-          docs: README.md
+          docs: README.md README.en.md
+          reverse: true
 
       # 发布凭据存在性守门，与上方 README 坐标守门同理：配置缺失在长构建之前大声
       # 失败。缺 Portal 令牌时拖到上传阶段才 401；缺私钥最隐蔽——build.gradle.kts

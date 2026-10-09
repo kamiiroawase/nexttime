@@ -1,30 +1,25 @@
 # nexttime
 
-[![Build](https://github.com/kamiiroawase/nexttime/actions/workflows/build.yml/badge.svg)](https://github.com/kamiiroawase/nexttime/actions)
-[![License: Unlicense](https://img.shields.io/badge/License-Unlicense-blue.svg)](http://unlicense.org/)
+[![Build](https://github.com/kamiiroawase/nexttime/actions/workflows/build.yml/badge.svg)](https://github.com/kamiiroawase/nexttime/actions/workflows/build.yml)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.kamiiroawase/nexttime.svg)](https://central.sonatype.com/artifact/io.github.kamiiroawase/nexttime)
+[![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](LICENSE)
 
-倒计时目标日推算库：给定日程的目标日、时刻与重复规则，推算下一个目标时刻并给出倒计时状态。支持公历与农历（闰月语义）、天/周/月/年重复、任意时区。
+倒计时目标日推算库：给定日程的**目标日、时刻与重复规则，推算下一个目标时刻并给出倒计时状态**——公历与农历（闰月语义）重复、天/周/月/年/小时/分钟单位、任意时区夏令时安全。库只做计算、不输出任何语言文案，渲染交给消费方（见[本地化渲染](#本地化渲染)）。
 
-Kotlin Multiplatform 库（commonMain 单一代码），目标平台：**Android（minSdk 24）、JVM（11+）、iOS（arm64 真机与模拟器）、wasmJs**。农历历法基于 [tyme4kt](https://github.com/6tail/tyme4kt)，日期时间基于 [kotlinx-datetime](https://github.com/Kotlin/kotlinx-datetime) 与 `kotlin.time`。库只做计算、不输出任何语言文案，渲染交给消费方（见[本地化渲染](#本地化渲染)）。
+Kotlin Multiplatform 库（commonMain 单一代码），农历历法基于 [tyme4kt](https://github.com/6tail/tyme4kt)，日期时间基于 [kotlinx-datetime](https://github.com/Kotlin/kotlinx-datetime) 与 `kotlin.time`。
 
-## 特性
+[English version](README.en.md)
 
-- **正反向推算**：`nextTarget()` 推进到下一个目标时刻（可带上限 `until`）；`previousTarget()` 取不晚于某时刻的最近一次出现；`anchor()` 暴露第一次出现
-- **公历与农历重复**：小时/分钟/天/周/月/年；小时/分钟为真实时长间隔（每 8 小时 = 8 个真实小时，跨日连续），天及以上为日历格点；农历月/年重复沿农历推进，闰月可选参与或跳过；月末收缩以锚点日为基准、后续回弹（1月31日 → 2月28日 → 3月31日），公历农历一致
-- **时区与夏令时安全**：目标日按 UTC 毫秒存储，组合时刻按指定时区；缺口时刻自动顺延（如纽约 02:30 → 03:30）、重叠取较早一次
-- **倒计时**：`countdown()` 输出「已过/未到 + 量级 + 单位」的结构化状态（可选进一模式）；`calendarCountdown()` 按日历细分年/月/日/时/分/秒（适合「X年X月X天」展示）
-- **性能**：天/周与农历重复的长跨度按周期直算或跳过远期历法换算；公历月/年重复沿日历逐步推进，量级有界（最坏约 12 万步、实测 JVM 数十毫秒）；反向推算复用同一套快路径
+## 使用
 
-## 引入
-
-发布在 Maven Central（`io.github.kamiiroawase` 组下）：
+发布于 [Maven Central](https://central.sonatype.com/artifact/io.github.kamiiroawase/nexttime)，版本跟随 `v*` git tag。支持 Android（minSdk 24）、JVM 11+、iOS（arm64 真机与模拟器）与 wasmJs。
 
 ```kotlin
-repositories {
-    mavenCentral()
-}
+repositories { mavenCentral() }
 
 dependencies {
+    // KMP 消费方在 commonMain 引用根坐标（Gradle module metadata 自动解析平台变体）；
+    // 需要钉住具体变体时见下表
     implementation("io.github.kamiiroawase:nexttime:3.2.0")
 }
 ```
@@ -39,16 +34,6 @@ dependencies {
 | iOS 模拟器（arm64） | `io.github.kamiiroawase:nexttime-iossimulatorarm64:3.2.0` |
 | wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:3.2.0` |
 
-KMP 消费方在 commonMain 引用根坐标即可：
-
-```kotlin
-kotlin {
-    sourceSets {
-        commonMain.dependencies { implementation("io.github.kamiiroawase:nexttime:3.2.0") }
-    }
-}
-```
-
 版本目录写法：
 
 ```toml
@@ -61,7 +46,13 @@ nexttime = { module = "io.github.kamiiroawase:nexttime", version.ref = "nexttime
 
 tyme4kt 与 kotlinx-datetime 以传递依赖自动引入（tyme4kt 的 `com.tyme.*` API 亦可直接使用）；wasmJs 平台的 IANA 时区库已内嵌并随 klib 传递，消费方零配置。
 
-## 快速上手
+- **正反向推算**：`nextTarget()` 推进到下一个目标时刻（可带上限 `until`）；`previousTarget()` 取不晚于某时刻的最近一次出现；`anchor()` 暴露第一次出现
+- **公历与农历重复**：小时/分钟/天/周/月/年；小时/分钟为真实时长间隔（每 8 小时 = 8 个真实小时，跨日连续），天及以上为日历格点；农历月/年重复沿农历推进，闰月可选参与或跳过；月末收缩以锚点日为基准、后续回弹（1月31日 → 2月28日 → 3月31日），公历农历一致
+- **时区与夏令时安全**：目标日按 UTC 毫秒存储，组合时刻按指定时区；缺口时刻自动顺延（如纽约 02:30 → 03:30）、重叠取较早一次
+- **倒计时**：`countdown()` 输出「已过/未到 + 量级 + 单位」的结构化状态（可选进一模式）；`calendarCountdown()` 按日历细分年/月/日/时/分/秒（适合「X年X月X天」展示）
+- **性能**：天/周与农历重复的长跨度按周期直算或跳过远期历法换算；公历月/年重复沿日历逐步推进，量级有界（最坏约 12 万步、实测 JVM 数十毫秒）；反向推算复用同一套快路径
+
+### 快速上手
 
 ```kotlin
 import io.github.kamiiroawase.nexttime.Schedule
@@ -92,7 +83,7 @@ val state = countdown(next, now)              // Countdown(past = false, value =
 
 展示日期时间：`next.toLocalDateTime(zone)` 得到 `LocalDateTime` 后按平台格式化。
 
-## 常见场景
+### 常见场景
 
 以下片段可直接复制试运行（`zone`、`now` 与 `utcMillis` 在块内定义）：
 
@@ -284,7 +275,7 @@ fun Countdown.zhText(): String {
 - **公历日期**：`instant.toLocalDateTime(zone)` 转为 `LocalDateTime` 后按平台格式化
 - **农历日期**：传递依赖 tyme4kt 取结构（`SolarDay.fromYmd(y, m, d).lunarDay`，中文名从 `getName()` 取得）
 
-## 已知限制与常见坑
+## 已知限制
 
 - **`targetDay` 只取 UTC 日期**，支持范围 0001-01-01..9999-12-31；`-1` 是「未选」哨兵，0 与负毫秒（1970-01-01 及更早）是合法日期
 - **农历月/年重复的锚点不得落在 1582-10-05..14（UTC）**：这十天是儒略→格里高利历换算缺口，农历历表（tyme）不含，构造时抛 `IllegalArgumentException`；农历天/周/小时/分钟重复与非农历日程不受限，1582-10-04 及更早、1582-10-15 及更晚均可正常推算
@@ -297,27 +288,19 @@ fun Countdown.zhText(): String {
 - **iOS 真机目标不执行测试**：Build 与 Release 工作流的 macOS job 均只跑模拟器目标（`iosSimulatorArm64Test`；Linux 上 iOS 测试无法运行，Release 的发布步骤以其通过为先决），真机目标（`iosArm64`）仅交叉编译验证——两者运行的是同一份 commonTest 代码
 - **2.x → 3.0 迁移**：坐标从 JitPack 的 `com.github.kamiiroawase.nexttime:nexttime-*` 迁到 Maven Central 的 `io.github.kamiiroawase:nexttime*`，包名同步从 `com.github.kamiiroawase.nexttime` 改为 `io.github.kamiiroawase.nexttime`（import 全量替换即可）；JitPack 上的 2.x 旧版本冻结不再维护
 
-## 测试
+## 开发
 
-170 个用例（`kotlin.test`，commonTest）覆盖公历/农历推算、闰月、月末收缩、DST 缺口/重叠/跳日、小时/分钟真实时长格点（含跨 DST 漂移与两千年长跨度）、范围边界与完结判定、正反对偶不变量、倒计时取整与日历分量；在 JVM、Android 单元测试与 wasm(Node) 三平台运行，iOS 模拟器由 macOS CI 执行。
-
+```bash
+git clone https://github.com/kamiiroawase/nexttime.git
+cd nexttime
+./gradlew build        # JDK 21+：编译全部 target + 宿主可执行测试 + 格式检查
+./gradlew jvmTest      # 单独跑某个平台
 ```
-./gradlew build
-```
 
-## 版本历史
-
-- **3.2.0**（2026-10-09）：`nextTarget` 带 `until` 的完结判定补全为「界内出现耗尽即返回 null」——此前仅当 now 越过「9999-12-31 末秒组合 + 48 小时余量」的保守上界才免推算完结，落在上界与实际最后一次界内出现之间（含仍在支持范围内、但已晚于最后一次出现）的 now 会撞范围守护抛 `IllegalStateException`，而此时答案可表示（null，重复已完结）；现公历/农历范围守护统一以内部异常分流，带 `until` 的查询按完结语义转 null，不带 `until` 的越界查询仍按契约抛异常（答案不可表示）；免推算快路径保留，其上界组合仅在带 `until` 时求值；农历月/年重复的锚点落在 1582-10-05..14（UTC，儒略→格里高利历换算缺口）时构造期拒绝，不再在推算期泄漏 tyme 的异常；农历 9999 年末月跨入公历 10000 年的候选按年表日数先行判定越界（不依赖 tyme 的越界报错形态）；发布链路加固——Release 工作流前置 macOS iOS 模拟器测试门禁、同 tag 重推改为排队不取消（Central 上传不可撤销）、macOS 侧补 wrapper 校验、Build 工作流支持手动触发；测试 154 → 170
-- **3.1.0**（2026-10-08）：`nextTarget` 的 `until` 早于 `now` 时直接返回 null（出现序列单调、重复已完结；此前 now 远到越过 0001..9999 范围界时会先撞范围守护抛 `IllegalStateException`）；农历月/年推算的年表缓存与月步进抽取为 next/previous 共用实现（行为不变，消除双实现漂移），锚点判定上提至三条路径之外统一；新增公开 API 二进制兼容守护（BCV，JVM 快照 + klib ABI，挂入 `build` 与两个 CI 工作流）；CI 供应链加固（action 按 commit SHA 固定、Dependabot 周更升级 PR、Release 工作流补 wrapper 校验、gradlew 带 git 可执行位）；新增 previousTarget 对偶不变量与 until 完结语义共 4 个测试
-- **3.0.0**（2026-10-03）：破坏性版本：发布渠道从 JitPack 迁到 Maven Central（组 `io.github.kamiiroawase`，根坐标可在 commonMain 直接引用），包名与 Android namespace 同步改为 `io.github.kamiiroawase.nexttime`；`Schedule` 构造期拒绝时分秒部分选择（此前静默按零点吞掉已选字段，须全选或全不选，要整点显式写全三个字段）；版本推导改为精确 tag 匹配（tag 之后的提交一律 0.0.0-SNAPSHOT，已发布号子不再沾染未发布提交）；Gradle 守护进程 JDK 与编译/测试工具链统一 21
-- **2.2.1**（2026-10-03）：维护版本：双参 `countdown` 重载委托统一实现（对外行为不变，消除双实现漂移风险）；发布工作流在发布前执行测试；`calendarCountdown` 与其他时区 API 一致加载 IANA 时区库；构建链升级（Gradle 9.8.0、AGP 9.4.1、Kotlin 2.4.20、compileSdk 37）并跟踪 gradle-daemon-jvm.properties
-- **2.2.0**（2026-08-27）：重复单位新增小时/分钟（真实时长格点：出现 = 锚点 + 步数×间隔，跨日连续、跨夏令时本地钟面漂移，不受 9999 上界守护；天及以上仍为钟面格点）；修复天/周快路径在锚点距 now 超 292 年时因 Duration 纳秒饱和误抛越界异常
-- **2.1.0**（2026-08-26）：新增 `previousTarget` / `anchor` / `nextTarget(until)` / `countdown` 取整模式 / `calendarCountdown`（纯增量，无破坏性变更）
-- **2.0.0**（2026-08-26）：迁移 Kotlin Multiplatform（Android/JVM/iOS/wasmJs）；API 改用 `kotlin.time.Instant` 与 `kotlinx-datetime.TimeZone`，1.x 的 `ZonedDateTime` 调用方以 `instant.toLocalDateTime(zone)` 迁移；JitPack 坐标按平台拆分
-- **1.x**（2026-08）：单平台版本（java.time + lunar-java），历史明细见 [Releases](https://github.com/kamiiroawase/nexttime/releases)
+170 个用例（`kotlin.test`，commonTest）覆盖公历/农历推算、闰月、月末收缩、DST 缺口/重叠/跳日、小时/分钟真实时长格点（含跨 DST 漂移与两千年长跨度）、范围边界与完结判定、正反对偶不变量、倒计时取整与日历分量；在 JVM、Android 单元测试与 wasm(Node) 上运行，iOS 模拟器由 macOS CI 执行。质量门禁全挂在 `build` 上：Spotless 格式、`explicitApi()` 显式 API、binary-compatibility-validator 公开 API 快照（有意变更时跑 `./gradlew apiDump`）。
 
 ## 许可
 
-[The Unlicense](LICENSE)
+[The Unlicense](LICENSE) —— 公共领域，随意使用。
 
 本库依赖 [tyme4kt](https://github.com/6tail/tyme4kt)（MIT License, Copyright (c) 6tail）与 [kotlinx-datetime](https://github.com/Kotlin/kotlinx-datetime)（Apache 2.0, JetBrains）。两者以独立构件由消费方自行解析，其许可不随本库重新授权；将其打入分发包（如 APK/IPA）时请按各自许可要求附上版权与许可声明。
