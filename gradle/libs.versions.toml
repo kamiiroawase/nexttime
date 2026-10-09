@@ -1,6 +1,7 @@
 [versions]
 agp = "9.4.1"
 binaryCompatibilityValidator = "0.18.2"
+dokka = "2.2.0"
 js-joda-timezone = "2.25.2"
 kotlin = "2.4.20"
 kotlinx-datetime = "0.8.0"
@@ -15,6 +16,7 @@ tyme4kt = { module = "cn.6tail:tyme4kt", version.ref = "tyme4kt" }
 [plugins]
 android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
 binary-compatibility-validator = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "binaryCompatibilityValidator" }
+dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktechMavenPublish" }

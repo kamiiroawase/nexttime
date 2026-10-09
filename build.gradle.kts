@@ -14,6 +14,10 @@ plugins {
     // 上，./gradlew build 与两个 CI 工作流即含校验，防止无意的 API 破坏流出到
     // Maven Central
     alias(libs.plugins.binary.compatibility.validator)
+
+    // KDoc 生成的 API 参考文档：./gradlew dokkaGeneratePublicationHtml（CI 以工作流
+    // 产物上传）；配置取 Dokka 多平台默认值
+    alias(libs.plugins.dokka)
 }
 
 group = "io.github.kamiiroawase"

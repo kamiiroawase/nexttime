@@ -2,9 +2,6 @@
 # kamiiroawase repos; strategy differences live in the inputs, not the code:
 #   docs              files that must mention the tag's version; with reverse: true
 #                     they must also have dropped the previous tag's version
-#   changelog         optional file that must carry a section for the tag's version
-#                     (a changelog keeps the old versions by design, so no reverse
-#                     check ever runs against it)
 #   coordinate-prefix optional literal expected right before the version, for docs
 #                     that quote it inside a dependency snippet (zonepicker:1.2.3)
 # Local composite action, not a third-party one: the Release workflow that calls it
@@ -17,10 +14,6 @@ inputs:
   docs:
     description: Space-separated doc files that must mention the tag's version
     required: true
-  changelog:
-    description: Optional changelog file that must carry a section for the tag's version
-    required: false
-    default: ''
   reverse:
     description: When 'true', the previous tag's version must no longer appear in docs
     required: false
@@ -37,7 +30,6 @@ runs:
       shell: bash
       env:
         DOCS: ${{ inputs.docs }}
-        CHANGELOG: ${{ inputs.changelog }}
         REVERSE: ${{ inputs.reverse }}
         COORDINATE_PREFIX: ${{ inputs.coordinate-prefix }}
       run: |
@@ -63,16 +55,9 @@ runs:
           }
         done
 
-        if [ -n "$CHANGELOG" ]; then
-          mentions_version "$VERSION" "$CHANGELOG" || {
-            echo "$CHANGELOG has no $VERSION section — move Unreleased under it"
-            exit 1
-          }
-        fi
-
-        # Reverse check only against docs: a changelog (or a README version-history
-        # section) keeps every old version by design, so requiring the previous one
-        # to disappear would fail every release
+        # Reverse check only against docs: a README version-history section keeps
+        # every old version by design, so requiring the previous one to disappear
+        # would fail every release
         if [ "$REVERSE" = "true" ]; then
           PREV_TAG="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
           if [ -n "$PREV_TAG" ]; then

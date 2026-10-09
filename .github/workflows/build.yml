@@ -73,6 +73,17 @@ jobs:
           grep -q kotlinx-datetime "$A/nexttime-$VERSION.pom"
           echo "Published artifacts verified: $VERSION"
 
+      # KDoc 生成的 API 参考文档，精心维护的文档无需本地跑 Dokka 即可浏览；
+      # 以工作流产物上传（后续如有值得接的文档部署，可再挂 Pages）
+      - name: Generate API documentation
+        run: ./gradlew dokkaGeneratePublicationHtml
+
+      - name: Upload API documentation
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: api-docs
+          path: build/dokka/html/**
+
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
