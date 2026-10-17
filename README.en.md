@@ -20,7 +20,7 @@ repositories { mavenCentral() }
 dependencies {
     // KMP consumers reference the root coordinate from commonMain (Gradle module
     // metadata resolves the platform variant); to pin a variant see the table below
-    implementation("io.github.kamiiroawase:nexttime:3.2.1")
+    implementation("io.github.kamiiroawase:nexttime:3.2.2")
 }
 ```
 
@@ -28,17 +28,17 @@ To pin a specific platform variant (Maven dependencies, locked coordinates, …)
 
 | Consumer | Coordinate |
 |---|---|
-| Android | `io.github.kamiiroawase:nexttime-android:3.2.1` |
-| JVM | `io.github.kamiiroawase:nexttime-jvm:3.2.1` |
-| iOS device (arm64) | `io.github.kamiiroawase:nexttime-iosarm64:3.2.1` |
-| iOS simulator (arm64) | `io.github.kamiiroawase:nexttime-iossimulatorarm64:3.2.1` |
-| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:3.2.1` |
+| Android | `io.github.kamiiroawase:nexttime-android:3.2.2` |
+| JVM | `io.github.kamiiroawase:nexttime-jvm:3.2.2` |
+| iOS device (arm64) | `io.github.kamiiroawase:nexttime-iosarm64:3.2.2` |
+| iOS simulator (arm64) | `io.github.kamiiroawase:nexttime-iossimulatorarm64:3.2.2` |
+| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:3.2.2` |
 
 Version catalog entry:
 
 ```toml
 [versions]
-nexttime = "3.2.1"
+nexttime = "3.2.2"
 
 [libraries]
 nexttime = { module = "io.github.kamiiroawase:nexttime", version.ref = "nexttime" }
