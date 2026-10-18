@@ -4,7 +4,7 @@
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.kamiiroawase/nexttime.svg)](https://central.sonatype.com/artifact/io.github.kamiiroawase/nexttime)
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](LICENSE)
 
-A countdown target-date library: given a schedule's **target day, time of day and repeat rule, it derives the next target instant and reports the countdown state** — solar and lunar (leap-month-aware) repeats, day/week/month/year/hour/minute units, weekday and month-day selectors, an occurrence-count cap and occurrence-sequence enumeration, DST-safe in any time zone. The library computes only and emits no localized strings; rendering stays with the consumer (see [Localized rendering](#localized-rendering)).
+A countdown target-date library: given a schedule's **target day, time of day and repeat rule, it derives the next target instant and reports the countdown state** — solar and lunar (leap-month-aware) repeats, day/week/month/year/hour/minute units, weekday and month-day selectors, an occurrence-count cap and occurrence-sequence enumeration, DST- and whole-day-jump-safe in any time zone. The library computes only and emits no localized strings; rendering stays with the consumer (see [Localized rendering](#localized-rendering)).
 
 A Kotlin Multiplatform library (single commonMain codebase); the lunar calendar comes from [tyme4kt](https://github.com/6tail/tyme4kt), date-time from [kotlinx-datetime](https://github.com/Kotlin/kotlinx-datetime) and `kotlin.time`.
 
@@ -49,7 +49,7 @@ tyme4kt and kotlinx-datetime arrive as transitive dependencies (tyme4kt's `com.t
 - **Forward and backward derivation**: `nextTarget()` advances to the next target instant (optionally capped by `until`); `previousTarget()` returns the latest occurrence at or before an instant; `anchor()` exposes the first occurrence; `occurrences()` lazily enumerates the occurrence sequence (next-N previews)
 - **Solar and lunar repeats**: hour/minute/day/week/month/year; hours and minutes are true-duration intervals (every 8 hours = 8 real hours, continuing across days), day and above are calendar grid points; lunar month/year repeats advance along the lunar calendar with leap months optionally counted or skipped; month-end shrink anchors to the anchor day and rebounds later (Jan 31 → Feb 28 → Mar 31), identically for solar and lunar
 - **Selectors and the occurrence-count cap**: week repeats take a weekday set (every Mon/Wed/Fri); month repeats take month-day positions (including the last day of the month) or nth weekdays (the second Tuesday, the last Friday); missing days either skip the month or shrink to the month end; `repeatCount` caps the total number of occurrences (anchor included; whichever of it and `until` comes first applies)
-- **Timezone and DST safety**: target days are stored as UTC milliseconds, instants combine in the specified zone; gap instants shift forward (New York 02:30 → 03:30), overlaps take the earlier instant
+- **Timezone and DST safety**: target days are stored as UTC milliseconds, instants combine in the specified zone; gap instants shift forward (New York 02:30 → 03:30), overlaps take the earlier instant; whole-day jumps (date-line changes, like Pacific/Apia's nonexistent 2011-12-30) follow the same semantics — an occurrence on a skipped local date shifts forward to the next existing instant, and skip-region judgments use composed instants rather than local-date ordering, so nothing is lost or leaked
 - **Countdown**: `countdown()` reports a structured "past/upcoming + magnitude + unit" state (optional ceiling mode); `calendarCountdown()` splits into calendar years/months/days/hours/minutes/seconds (for "X years Y months Z days" displays)
 - **Performance**: day/week and lunar repeats compute long spans by period directly or skip far-future calendar conversions; solar month/year repeats step along the calendar with bounded work (worst case ~120k steps, a few milliseconds measured on JVM — see the benchmark module); backward derivation reuses the same fast paths
 
@@ -227,7 +227,7 @@ data class CountdownItem(
 ```
 
 - **Wire field names are the contract**: the 13 fields map one-to-one onto the [Schedule fields](#schedule-fields) property names, stable across versions; `Set<Int>` fields encode as sorted JSON arrays (deterministic wire format), decoding accepts any order
-- All fields are always written (independent of `encodeDefaults`); decoding goes through the `Schedule` constructor and **re-runs every validation** — corrupted data (out-of-range fields, illegal combinations) throws `SerializationException` instead of silently producing an invalid schedule
+- All fields are always written (independent of `encodeDefaults`); a missing field on decode throws `SerializationException`, and decoding goes through the `Schedule` constructor to **re-run every validation** — corrupted data (out-of-range fields, illegal combinations) throws `SerializationException` instead of silently producing an invalid schedule
 - Unknown-field tolerance is the consumer's Json configuration (`Json { ignoreUnknownKeys = true }` skips; the default errors)
 - Android additionally gets `ScheduleParcel` (a `Parcelable` wrapper for process death and Fragment/Activity arguments): `ScheduleParcel(schedule)`, re-validated on read
 
@@ -246,7 +246,8 @@ import io.github.kamiiroawase.nexttime.rrule.toRruleOrNull
 import kotlinx.datetime.LocalDateTime
 
 // Export: the rule string describes the repeat rule only; the anchor date-time
-// (iCalendar's DTSTART) is kept by the caller
+// (iCalendar's DTSTART) is kept by the caller; the output is a deterministic
+// canonical form (see below) — the same schedule always yields the same string
 val rrule = schedule.toRrule()             // e.g. "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH"
 val maybe = schedule.toRruleOrNull()       // null when not losslessly expressible
 
@@ -263,6 +264,10 @@ val imported = parseRrule("FREQ=MONTHLY;BYDAY=2TU", LocalDateTime(2026, 9, 8, 9,
 
 Mind the month-repeat semantic divide: this library's **selector-less** month repeat is anchor-day shrink/rebound (1/31 → 2/28 → 3/31) while RFC BYMONTHDAY **skips missing days** — `monthDays = {31}` (clamp = false) is the exact RFC counterpart; the import direction applies that mapping automatically, and export requires explicit selectors.
 
+**Export is a deterministic canonical form**: the part order is fixed as FREQ, INTERVAL (=1 omitted), BYDAY/BYMONTHDAY (collection values in within-month chronological order), COUNT — the same schedule always yields a byte-identical rule string, directly usable as a cache key or golden assertion.
+
+**Parsing is case-sensitive** (deliberately): only uppercase names and enum values are accepted (`FREQ=WEEKLY`, `BYDAY=MO`, `WKST=MO`), unlike RFC 5545's nominal case-insensitivity — normalize lowercase input on the caller's side; export is always uppercase.
+
 ## API
 
 `Instant` / `Clock` come from `kotlin.time`.
@@ -277,7 +282,7 @@ Mind the month-repeat semantic divide: this library's **selector-less** month re
 | `targetHour` | Int | -1 | Target hour, -1 unselected; **the three time-of-day fields are all-or-none** — a partial selection throws `IllegalArgumentException` at construction |
 | `targetMinute` | Int | -1 | Target minute, -1 unselected |
 | `targetSecond` | Int | -1 | Target second, -1 unselected |
-| `repeatInterval` | Int | 0 | Repeat interval (0..100000); 0 counts as non-repeating |
+| `repeatInterval` | Int | 0 | Repeat interval (0..100000, upper bound as the `Schedule.MAX_REPEAT_INTERVAL` constant); 0 counts as non-repeating |
 | `repeatUnit` | Int | RepeatUnit.NONE | Repeat unit, one of `RepeatUnit.NONE/DAY/WEEK/MONTH/YEAR/HOUR/MINUTE`; with `NONE` the schedule is non-repeating whatever the interval (ignored, same effect as `repeatInterval = 0`) |
 | `weekdays` | Set\<Int\> | empty | Weekday selector, one of `WeekDay.MONDAY..SUNDAY` (ISO: 1..7); pairs with week or month repeats. Week repeats occur once per selected weekday in each interval week from the anchor week; month repeats combine with `weekdayOrdinals` for nth weekdays; **the anchor date's weekday must be in the set** — see [Selector semantics](#selector-semantics) |
 | `weekdayOrdinals` | Set\<Int\> | empty | Ordinals within the month (month repeats + non-empty `weekdays` only): 1..5 = the nth, -1..-5 = the nth-from-last selected weekday; empty = every hit weekday of the month; an out-of-range ordinal (a 5th Tuesday in a month with four) skips that month |
@@ -333,7 +338,7 @@ fun Schedule.occurrences(
 | Hour/minute repeat | **True-duration grid points**: occurrence = anchor + steps × interval, continuous across days; `lunar` is irrelevant; **not guarded by the 0001..9999 bound** (advances freely within the Instant range) |
 | Month/year repeat meets a short month / non-leap year | Shrinks to the day closest to the anchor day, rebounding later (1/31 → 2/28 → 3/31; 2/29 → 2/28 in a non-leap year → 2/29 in a leap year); month repeats with selectors skip this path (the selectors decide, missing days skip or shrink per `clampMonthDays`) |
 
-Two DST semantics: day-and-above units combine each occurrence independently as "date + time of day + zone" (clock-face grid points) — gap instants shift forward (affecting that day only), overlaps take the earlier instant, and across a DST change every day occurs at the same local time; `anchor()` likewise returns the shifted instant when the anchor day falls in a gap, always equal to the first occurrence. Hours/minutes advance by true duration (ISO 8601 time-based convention) — the interval is constant and the local clock face drifts one hour across a DST change. Selectors decide only the occurrence **date**; time-of-day combination and DST semantics are identical with and without selectors.
+Two timezone-discontinuity semantics: day-and-above units combine each occurrence independently as "date + time of day + zone" (clock-face grid points) — gap instants shift forward (affecting that day only; hour-level gaps like New York 02:30 → 03:30 and whole-day jumps like Pacific/Apia's 2011-12-30 shifting to 12-31 alike), overlaps take the earlier instant, and across a DST change every day occurs at the same local time; `anchor()` likewise returns the shifted instant when the anchor day falls in a gap, always equal to the first occurrence. Hours/minutes advance by true duration (ISO 8601 time-based convention) — the interval is constant and the local clock face drifts one hour across a DST change. Selectors decide only the occurrence **date**; time-of-day combination and DST semantics are identical with and without selectors.
 
 ### Selector semantics
 
@@ -444,9 +449,10 @@ cd nexttime
 ./gradlew build        # JDK 21+: all targets + host-runnable tests + format checks
 ./gradlew jvmTest      # one platform
 ./gradlew :benchmark:benchmark   # regression benchmarks (JVM-only, optional, not CI-gated)
+./gradlew dokkaGeneratePublicationHtml   # KDoc API reference (also generated and uploaded by CI)
 ```
 
-244 test cases (`kotlin.test`, commonTest — 227 core + 8 serialization + 9 rrule) cover solar/lunar derivation, leap months, month-end shrink, DST gaps/overlaps/skipped days, hour/minute true-duration grid points (including DST drift and two-millennia spans), range boundaries and completion semantics, forward/backward dual invariants, countdown rounding and calendar components, week/month selectors (weekday sets, month days, ordinals and the two missing-day modes, anchor membership), occurrence-count completion and occurrence sequences, serialization wire format and decode validation, and bidirectional RRULE conversion; seed-fixed **property tests** on top (deterministic fuzzing: random schedules × random query instants × a zone pool including ±30/45-minute DST extremes, with reproducible failure messages carrying the seed) pin down seven universal invariants; they run on JVM, Android unit tests and wasm (Node), with the iOS simulator executed by macOS CI. The `:benchmark` module (kotlinx-benchmark, JVM-only, unpublished) pins the worst-case magnitude — a year-1 monthly anchor projected to 9999 takes about 3 milliseconds. Quality gates hang off `build` for all three modules: Spotless formatting, `explicitApi()` explicit API, binary-compatibility-validator public-API snapshots (run `./gradlew apiDump` for intentional changes; child modules via `:serialization:apiDump` / `:rrule:apiDump`).
+246 test cases (`kotlin.test`, commonTest — 229 core + 8 serialization + 9 rrule) cover solar/lunar derivation, leap months, month-end shrink, DST gaps/overlaps/skipped days and whole-day timezone jumps, hour/minute true-duration grid points (including DST drift and two-millennia spans), range boundaries and completion semantics, forward/backward dual invariants, countdown rounding and calendar components, week/month selectors (weekday sets, month days, ordinals and the two missing-day modes, anchor membership), occurrence-count completion and occurrence sequences, serialization wire format and decode validation, and bidirectional RRULE conversion; seed-fixed **property tests** on top (deterministic fuzzing: random schedules × random query instants × a zone pool including ±30/45-minute DST extremes, with reproducible failure messages carrying the seed) pin down seven universal invariants; they run on JVM, Android unit tests and wasm (Node), with the iOS simulator executed by macOS CI. The `:benchmark` module (kotlinx-benchmark, JVM-only, unpublished) pins the worst-case magnitude — a year-1 monthly anchor projected to 9999 takes about 3 milliseconds. Quality gates hang off `build` for all three modules: Spotless formatting, `explicitApi()` explicit API, binary-compatibility-validator public-API snapshots (a dual snapshot of the JVM `.api` and the iOS/wasmJs klib ABI; run `./gradlew apiDump` for intentional changes; child modules via `:serialization:apiDump` / `:rrule:apiDump`).
 
 ## License
 
