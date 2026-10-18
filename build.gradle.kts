@@ -103,6 +103,10 @@ kotlin {
 // dump 含 ABI 签名、跨 Kotlin 版本可能重排，apiCheck 失败时人工 diff 确认后
 // 重跑 apiDump 更新
 apiValidation {
+    // benchmark 模块无公开 API、不发布，不留 API 快照；BCV 经 allprojects 钩到
+    // 所有 KMP 子项目，须显式排除，否则其 apiCheck 因缺快照失败
+    ignoredProjects += "benchmark"
+
     klib {
         enabled = true
     }

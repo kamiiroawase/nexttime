@@ -256,7 +256,8 @@ public fun Schedule.nextTarget(
 
             // 月/年重复以锚点日为基准收缩回弹（1/31 → 2/28 → 3/31），须逐步自锚点推进；
             // 迭代数 = 日历距离 ÷ 间隔，随锚点距今变远线性增长：数十年数百次，最坏
-            // （公元 1 年锚点月重复推到 9999 年）约 12 万次，实测 JVM 数十毫秒——
+            // （公元 1 年锚点月重复推到 9999 年）约 12 万次，实测 JVM 约 3 毫秒（benchmark
+            // 模块的 monthRepeatWorstCase 锚点）——
             // 量级有界，无需直算快路径
             var step = repeatInterval.toLong()
             while (true) {

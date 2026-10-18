@@ -4,6 +4,7 @@ binaryCompatibilityValidator = "0.18.2"
 dokka = "2.2.0"
 js-joda-timezone = "2.25.2"
 kotlin = "2.4.20"
+kotlinx-benchmark = "0.5.0"
 kotlinx-datetime = "0.8.0"
 kotlinx-serialization = "1.11.0"
 spotless = "8.10.3"
@@ -11,6 +12,7 @@ tyme4kt = "1.5.0"
 vanniktechMavenPublish = "0.37.0"
 
 [libraries]
+kotlinx-benchmark-runtime = { module = "org.jetbrains.kotlinx:kotlinx-benchmark-runtime", version.ref = "kotlinx-benchmark" }
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
@@ -21,5 +23,6 @@ android-kotlin-multiplatform-library = { id = "com.android.kotlin.multiplatform.
 binary-compatibility-validator = { id = "org.jetbrains.kotlinx.binary-compatibility-validator", version.ref = "binaryCompatibilityValidator" }
 dokka = { id = "org.jetbrains.dokka", version.ref = "dokka" }
 kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlinx-benchmark = { id = "org.jetbrains.kotlinx.benchmark", version.ref = "kotlinx-benchmark" }
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktechMavenPublish" }

@@ -51,7 +51,7 @@ tyme4kt 与 kotlinx-datetime 以传递依赖自动引入（tyme4kt 的 `com.tyme
 - **选择器与次数上限**：周重复配星期集合（每周一三五）、月重复配月内日（含每月最后一天）或第 n 个星期几（每月第二个周二、最后一个周五）；缺失日可选跳过或收缩到月末；`repeatCount` 限定出现总次数（含锚点，与 `until` 先到者生效）
 - **时区与夏令时安全**：目标日按 UTC 毫秒存储，组合时刻按指定时区；缺口时刻自动顺延（如纽约 02:30 → 03:30）、重叠取较早一次
 - **倒计时**：`countdown()` 输出「已过/未到 + 量级 + 单位」的结构化状态（可选进一模式）；`calendarCountdown()` 按日历细分年/月/日/时/分/秒（适合「X年X月X天」展示）
-- **性能**：天/周与农历重复的长跨度按周期直算或跳过远期历法换算；公历月/年重复沿日历逐步推进，量级有界（最坏约 12 万步、实测 JVM 数十毫秒）；反向推算复用同一套快路径
+- **性能**：天/周与农历重复的长跨度按周期直算或跳过远期历法换算；公历月/年重复沿日历逐步推进，量级有界（最坏约 12 万步、实测 JVM 数毫秒，见 benchmark 模块）；反向推算复用同一套快路径
 
 ### 快速上手
 
@@ -434,9 +434,10 @@ git clone https://github.com/kamiiroawase/nexttime.git
 cd nexttime
 ./gradlew build        # JDK 21+：编译全部 target + 宿主可执行测试 + 格式检查
 ./gradlew jvmTest      # 单独跑某个平台
+./gradlew :benchmark:benchmark   # 回归基准（仅 JVM、可选、不进 CI 门禁）
 ```
 
-237 个用例（`kotlin.test`，commonTest，核心 220 + serialization 8 + rrule 9）覆盖公历/农历推算、闰月、月末收缩、DST 缺口/重叠/跳日、小时/分钟真实时长格点（含跨 DST 漂移与两千年长跨度）、范围边界与完结判定、正反对偶不变量、倒计时取整与日历分量、周/月选择器（星期集合、月内日、序数与缺失日两模式、锚点隶属）、出现次数上限完结与出现序列、序列化线格式与解码校验、RRULE 无损子集双向转换；在 JVM、Android 单元测试与 wasm(Node) 上运行，iOS 模拟器由 macOS CI 执行。质量门禁全挂在 `build` 上（三模块同门禁）：Spotless 格式、`explicitApi()` 显式 API、binary-compatibility-validator 公开 API 快照（有意变更时跑 `./gradlew apiDump`，子模块为 `:serialization:apiDump` / `:rrule:apiDump`）。
+244 个用例（`kotlin.test`，commonTest，核心 227 + serialization 8 + rrule 9）覆盖公历/农历推算、闰月、月末收缩、DST 缺口/重叠/跳日、小时/分钟真实时长格点（含跨 DST 漂移与两千年长跨度）、范围边界与完结判定、正反对偶不变量、倒计时取整与日历分量、周/月选择器（星期集合、月内日、序数与缺失日两模式、锚点隶属）、出现次数上限完结与出现序列、序列化线格式与解码校验、RRULE 无损子集双向转换；另有固定种子的**属性测试**（确定性模糊：随机日程 × 随机查询时刻 × 含 ±30/45 分钟夏令时极值的时区池，失败消息携带种子与用例可精确复现）锚定七大普适不变量；在 JVM、Android 单元测试与 wasm(Node) 上运行，iOS 模拟器由 macOS CI 执行。`:benchmark` 模块（kotlinx-benchmark，仅 JVM、不发布）锚定最坏路径的量级——公元 1 年锚点月重复推到 9999 年约 3 毫秒。质量门禁全挂在 `build` 上（三模块同门禁）：Spotless 格式、`explicitApi()` 显式 API、binary-compatibility-validator 公开 API 快照（有意变更时跑 `./gradlew apiDump`，子模块为 `:serialization:apiDump` / `:rrule:apiDump`）。
 
 ## 许可
 
