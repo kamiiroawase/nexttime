@@ -20,7 +20,7 @@ repositories { mavenCentral() }
 dependencies {
     // KMP consumers reference the root coordinate from commonMain (Gradle module
     // metadata resolves the platform variant); to pin a variant see the table below
-    implementation("io.github.kamiiroawase:nexttime:4.0.0")
+    implementation("io.github.kamiiroawase:nexttime:4.1.0")
 }
 ```
 
@@ -28,17 +28,17 @@ To pin a specific platform variant (Maven dependencies, locked coordinates, …)
 
 | Consumer | Coordinate |
 |---|---|
-| Android | `io.github.kamiiroawase:nexttime-android:4.0.0` |
-| JVM | `io.github.kamiiroawase:nexttime-jvm:4.0.0` |
-| iOS device (arm64) | `io.github.kamiiroawase:nexttime-iosarm64:4.0.0` |
-| iOS simulator (arm64) | `io.github.kamiiroawase:nexttime-iossimulatorarm64:4.0.0` |
-| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:4.0.0` |
+| Android | `io.github.kamiiroawase:nexttime-android:4.1.0` |
+| JVM | `io.github.kamiiroawase:nexttime-jvm:4.1.0` |
+| iOS device (arm64) | `io.github.kamiiroawase:nexttime-iosarm64:4.1.0` |
+| iOS simulator (arm64) | `io.github.kamiiroawase:nexttime-iossimulatorarm64:4.1.0` |
+| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:4.1.0` |
 
 Version catalog entry:
 
 ```toml
 [versions]
-nexttime = "4.0.0"
+nexttime = "4.1.0"
 
 [libraries]
 nexttime = { module = "io.github.kamiiroawase:nexttime", version.ref = "nexttime" }
@@ -205,7 +205,7 @@ The core library takes zero new dependencies; these companion modules are opt-in
 A kotlinx-serialization serializer for `Schedule` plus an Android Parcelable wrapper (depends on `kotlinx-serialization-core`; Json stays with the consumer):
 
 ```kotlin
-implementation("io.github.kamiiroawase:nexttime-serialization:4.0.0")
+implementation("io.github.kamiiroawase:nexttime-serialization:4.1.0")
 ```
 
 ```kotlin
@@ -236,7 +236,7 @@ data class CountdownItem(
 Bidirectional conversion of a lossless RFC 5545 RRULE subset — interop with the iCalendar ecosystem (system calendars, Google Calendar):
 
 ```kotlin
-implementation("io.github.kamiiroawase:nexttime-rrule:4.0.0")
+implementation("io.github.kamiiroawase:nexttime-rrule:4.1.0")
 ```
 
 ```kotlin
@@ -433,7 +433,7 @@ fun Countdown.zhText(): String {
 - **Two repeat semantics split by unit** (ISO 8601 convention): day and above are clock-face grid points (every day occurs at the same local time across DST), hours/minutes are true-duration grid points (constant interval, local clock face drifts one hour across DST, not guarded by the 0001..9999 bound, no range exception)
 - **No iOS x64 simulator target** (matching tyme4kt's published surface — arm64 device and simulator only); Android minSdk 24+, JVM 11+, no desugaring
 - **The iOS device target runs no tests**: the macOS jobs of the Build and Release workflows run the simulator target only (`iosSimulatorArm64Test`; iOS tests cannot run on Linux, and the Release publish step gates on its passing), while the device target (`iosArm64`) is cross-compile-verified only — both run the same commonTest sources
-- **3.x → 4.0 migration**: `Schedule`'s constructor gains five fields — `weekdays` / `weekdayOrdinals` / `monthDays` / `clampMonthDays` / `repeatCount` (all defaulted) — named-argument call sites stay **source-compatible**, but the constructor signature change is **binary-incompatible** for compiled consumers: recompile against 4.0.0. No behavioral break (all new fields default off; with defaults, derivation results match 3.x exactly)
+- **3.x → 4.0 migration**: `Schedule`'s constructor gains five fields — `weekdays` / `weekdayOrdinals` / `monthDays` / `clampMonthDays` / `repeatCount` (all defaulted) — named-argument call sites stay **source-compatible**, but the constructor signature change is **binary-incompatible** for compiled consumers: recompile against the 4.x artifacts. No behavioral break (all new fields default off; with defaults, derivation results match 3.x exactly)
 - **2.x → 3.0 migration**: coordinates moved from JitPack's `com.github.kamiiroawase.nexttime:nexttime-*` to Maven Central's `io.github.kamiiroawase:nexttime*`, and the package name changed from `com.github.kamiiroawase.nexttime` to `io.github.kamiiroawase.nexttime` (a bulk import replacement suffices); the old 2.x versions on JitPack are frozen and unmaintained
 
 ## Development

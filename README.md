@@ -20,7 +20,7 @@ repositories { mavenCentral() }
 dependencies {
     // KMP 消费方在 commonMain 引用根坐标（Gradle module metadata 自动解析平台变体）；
     // 需要钉住具体变体时见下表
-    implementation("io.github.kamiiroawase:nexttime:4.0.0")
+    implementation("io.github.kamiiroawase:nexttime:4.1.0")
 }
 ```
 
@@ -28,17 +28,17 @@ dependencies {
 
 | 消费平台 | 坐标 |
 |---|---|
-| Android | `io.github.kamiiroawase:nexttime-android:4.0.0` |
-| JVM | `io.github.kamiiroawase:nexttime-jvm:4.0.0` |
-| iOS 真机（arm64） | `io.github.kamiiroawase:nexttime-iosarm64:4.0.0` |
-| iOS 模拟器（arm64） | `io.github.kamiiroawase:nexttime-iossimulatorarm64:4.0.0` |
-| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:4.0.0` |
+| Android | `io.github.kamiiroawase:nexttime-android:4.1.0` |
+| JVM | `io.github.kamiiroawase:nexttime-jvm:4.1.0` |
+| iOS 真机（arm64） | `io.github.kamiiroawase:nexttime-iosarm64:4.1.0` |
+| iOS 模拟器（arm64） | `io.github.kamiiroawase:nexttime-iossimulatorarm64:4.1.0` |
+| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:4.1.0` |
 
 版本目录写法：
 
 ```toml
 [versions]
-nexttime = "4.0.0"
+nexttime = "4.1.0"
 
 [libraries]
 nexttime = { module = "io.github.kamiiroawase:nexttime", version.ref = "nexttime" }
@@ -197,7 +197,7 @@ anniversary.anchor(zone)                 // 第一次出现
 `Schedule` 的 kotlinx-serialization 序列化器与 Android Parcelable 包装（依赖 `kotlinx-serialization-core`，Json 由消费方自带）：
 
 ```kotlin
-implementation("io.github.kamiiroawase:nexttime-serialization:4.0.0")
+implementation("io.github.kamiiroawase:nexttime-serialization:4.1.0")
 ```
 
 ```kotlin
@@ -228,7 +228,7 @@ data class CountdownItem(
 RFC 5545 RRULE 无损子集的双向转换——与系统日历、Google Calendar 等 iCalendar 生态互通：
 
 ```kotlin
-implementation("io.github.kamiiroawase:nexttime-rrule:4.0.0")
+implementation("io.github.kamiiroawase:nexttime-rrule:4.1.0")
 ```
 
 ```kotlin
@@ -424,7 +424,7 @@ fun Countdown.zhText(): String {
 - **两套重复语义按单位分界**（ISO 8601 惯例）：天及以上为钟面格点（跨夏令时每天出现在同一本地时刻），小时/分钟为真实时长格点（间隔不变、本地钟面跨夏令时漂移 1 小时，且不受 0001..9999 上界守护、不抛越界异常）
 - **iOS 无 x64 模拟器目标**（对齐 tyme4kt 发布面，仅 arm64 真机与模拟器）；Android minSdk 24+、JVM 11+，无需 desugaring
 - **iOS 真机目标不执行测试**：Build 与 Release 工作流的 macOS job 均只跑模拟器目标（`iosSimulatorArm64Test`；Linux 上 iOS 测试无法运行，Release 的发布步骤以其通过为先决），真机目标（`iosArm64`）仅交叉编译验证——两者运行的是同一份 commonTest 代码
-- **3.x → 4.0 迁移**：`Schedule` 构造器新增 `weekdays` / `weekdayOrdinals` / `monthDays` / `clampMonthDays` / `repeatCount` 五个字段（均带默认值）——命名参数用法**源码兼容**，但构造器签名变更对已编译消费方为**二进制不兼容**，升级 4.0.0 需重新编译；行为无破坏性变更（全部新字段默认关闭，默认值下推算结果与 3.x 一致）
+- **3.x → 4.0 迁移**：`Schedule` 构造器新增 `weekdays` / `weekdayOrdinals` / `monthDays` / `clampMonthDays` / `repeatCount` 五个字段（均带默认值）——命名参数用法**源码兼容**，但构造器签名变更对已编译消费方为**二进制不兼容**，升级 4.x 需重新编译；行为无破坏性变更（全部新字段默认关闭，默认值下推算结果与 3.x 一致）
 - **2.x → 3.0 迁移**：坐标从 JitPack 的 `com.github.kamiiroawase.nexttime:nexttime-*` 迁到 Maven Central 的 `io.github.kamiiroawase:nexttime*`，包名同步从 `com.github.kamiiroawase.nexttime` 改为 `io.github.kamiiroawase.nexttime`（import 全量替换即可）；JitPack 上的 2.x 旧版本冻结不再维护
 
 ## 开发
