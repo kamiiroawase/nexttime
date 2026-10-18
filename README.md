@@ -20,7 +20,7 @@ repositories { mavenCentral() }
 dependencies {
     // KMP 消费方在 commonMain 引用根坐标（Gradle module metadata 自动解析平台变体）；
     // 需要钉住具体变体时见下表
-    implementation("io.github.kamiiroawase:nexttime:4.1.0")
+    implementation("io.github.kamiiroawase:nexttime:4.2.0")
 }
 ```
 
@@ -28,17 +28,17 @@ dependencies {
 
 | 消费平台 | 坐标 |
 |---|---|
-| Android | `io.github.kamiiroawase:nexttime-android:4.1.0` |
-| JVM | `io.github.kamiiroawase:nexttime-jvm:4.1.0` |
-| iOS 真机（arm64） | `io.github.kamiiroawase:nexttime-iosarm64:4.1.0` |
-| iOS 模拟器（arm64） | `io.github.kamiiroawase:nexttime-iossimulatorarm64:4.1.0` |
-| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:4.1.0` |
+| Android | `io.github.kamiiroawase:nexttime-android:4.2.0` |
+| JVM | `io.github.kamiiroawase:nexttime-jvm:4.2.0` |
+| iOS 真机（arm64） | `io.github.kamiiroawase:nexttime-iosarm64:4.2.0` |
+| iOS 模拟器（arm64） | `io.github.kamiiroawase:nexttime-iossimulatorarm64:4.2.0` |
+| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:4.2.0` |
 
 版本目录写法：
 
 ```toml
 [versions]
-nexttime = "4.1.0"
+nexttime = "4.2.0"
 
 [libraries]
 nexttime = { module = "io.github.kamiiroawase:nexttime", version.ref = "nexttime" }
@@ -197,7 +197,7 @@ anniversary.anchor(zone)                 // 第一次出现
 `Schedule` 的 kotlinx-serialization 序列化器与 Android Parcelable 包装（依赖 `kotlinx-serialization-core`，Json 由消费方自带）：
 
 ```kotlin
-implementation("io.github.kamiiroawase:nexttime-serialization:4.1.0")
+implementation("io.github.kamiiroawase:nexttime-serialization:4.2.0")
 ```
 
 ```kotlin
@@ -228,7 +228,7 @@ data class CountdownItem(
 RFC 5545 RRULE 无损子集的双向转换——与系统日历、Google Calendar 等 iCalendar 生态互通：
 
 ```kotlin
-implementation("io.github.kamiiroawase:nexttime-rrule:4.1.0")
+implementation("io.github.kamiiroawase:nexttime-rrule:4.2.0")
 ```
 
 ```kotlin

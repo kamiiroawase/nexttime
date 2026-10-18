@@ -20,7 +20,7 @@ repositories { mavenCentral() }
 dependencies {
     // KMP consumers reference the root coordinate from commonMain (Gradle module
     // metadata resolves the platform variant); to pin a variant see the table below
-    implementation("io.github.kamiiroawase:nexttime:4.1.0")
+    implementation("io.github.kamiiroawase:nexttime:4.2.0")
 }
 ```
 
@@ -28,17 +28,17 @@ To pin a specific platform variant (Maven dependencies, locked coordinates, …)
 
 | Consumer | Coordinate |
 |---|---|
-| Android | `io.github.kamiiroawase:nexttime-android:4.1.0` |
-| JVM | `io.github.kamiiroawase:nexttime-jvm:4.1.0` |
-| iOS device (arm64) | `io.github.kamiiroawase:nexttime-iosarm64:4.1.0` |
-| iOS simulator (arm64) | `io.github.kamiiroawase:nexttime-iossimulatorarm64:4.1.0` |
-| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:4.1.0` |
+| Android | `io.github.kamiiroawase:nexttime-android:4.2.0` |
+| JVM | `io.github.kamiiroawase:nexttime-jvm:4.2.0` |
+| iOS device (arm64) | `io.github.kamiiroawase:nexttime-iosarm64:4.2.0` |
+| iOS simulator (arm64) | `io.github.kamiiroawase:nexttime-iossimulatorarm64:4.2.0` |
+| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:4.2.0` |
 
 Version catalog entry:
 
 ```toml
 [versions]
-nexttime = "4.1.0"
+nexttime = "4.2.0"
 
 [libraries]
 nexttime = { module = "io.github.kamiiroawase:nexttime", version.ref = "nexttime" }
@@ -205,7 +205,7 @@ The core library takes zero new dependencies; these companion modules are opt-in
 A kotlinx-serialization serializer for `Schedule` plus an Android Parcelable wrapper (depends on `kotlinx-serialization-core`; Json stays with the consumer):
 
 ```kotlin
-implementation("io.github.kamiiroawase:nexttime-serialization:4.1.0")
+implementation("io.github.kamiiroawase:nexttime-serialization:4.2.0")
 ```
 
 ```kotlin
@@ -236,7 +236,7 @@ data class CountdownItem(
 Bidirectional conversion of a lossless RFC 5545 RRULE subset — interop with the iCalendar ecosystem (system calendars, Google Calendar):
 
 ```kotlin
-implementation("io.github.kamiiroawase:nexttime-rrule:4.1.0")
+implementation("io.github.kamiiroawase:nexttime-rrule:4.2.0")
 ```
 
 ```kotlin
