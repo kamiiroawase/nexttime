@@ -1,9 +1,11 @@
 package io.github.kamiiroawase.nexttime
 
 import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.time.Instant
 
 /** 月重复 + 月内日选择器：月末定位、缺失日跳过/收缩、多日排序、锚点隶属与互斥校验 */
 @Suppress("NonAsciiCharacters", "RemoveRedundantBackticks")
@@ -89,6 +91,28 @@ class MonthDayRepeatTest {
 
         assertEquals(LocalDate(2026, 3, 30), dateOf(schedule.nextTarget(zdt(2026, 2, 10), shanghai)!!, shanghai))
         assertEquals(LocalDate(2026, 5, 30), dateOf(schedule.nextTarget(zdt(2026, 4, 1), shanghai)!!, shanghai))
+    }
+
+    @Test
+    fun `整日跳变缺口的月选择器出现不被整月跳过`() {
+        // Apia 2011-12-30 整天不存在（12/29 末自 -10 跳 +14）：{30} 的 12 月出现
+        // 组合后顺延到 12-31 00:30 当地，本地日期序不再蕴含时刻序——整月跳过须
+        // 以组合时刻判定，now 在顺延窗口内时它仍是下一个目标（而非次年 1 月）
+        val apia = TimeZone.of("Pacific/Apia")
+        val schedule = schedule(utcMillis(LocalDate(2011, 11, 30)), 0, 30, 0, interval = 1, unit = RepeatUnit.MONTH, monthDays = setOf(30))
+
+        assertEquals(Instant.parse("2011-12-30T10:30:00Z"), schedule.nextTarget(instantOf(apia, 2011, 12, 31, 0, 0, 0), apia))
+    }
+
+    @Test
+    fun `整日跳变缺口的月选择器previous不返回晚于before的出现`() {
+        // 同上一用例的缺口：顺延后的 12 月出现（12-31 00:30）晚于 before
+        // （12-31 00:00），最近一次不晚于 before 的是 11 月锚点本身——按本地
+        // 日期序整月跳过会把顺延出现错记为不晚于 before 而泄漏出去
+        val apia = TimeZone.of("Pacific/Apia")
+        val schedule = schedule(utcMillis(LocalDate(2011, 11, 30)), 0, 30, 0, interval = 1, unit = RepeatUnit.MONTH, monthDays = setOf(30))
+
+        assertEquals(Instant.parse("2011-11-30T10:30:00Z"), schedule.previousTarget(instantOf(apia, 2011, 12, 31, 0, 0, 0), apia))
     }
 
     @Test

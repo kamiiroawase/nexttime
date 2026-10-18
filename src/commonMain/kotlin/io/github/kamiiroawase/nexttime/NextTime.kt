@@ -36,6 +36,9 @@ private const val MAX_LUNAR_YEAR = 9999
  */
 private const val ZONE_DISCONTINUITY_SLACK_SECONDS = 48L * 3600
 
+/** [ZONE_DISCONTINUITY_SLACK_SECONDS] 的日计形态：以本地日期做日期格点估计时使用的同一余量 */
+private const val ZONE_DISCONTINUITY_SLACK_DAYS = ZONE_DISCONTINUITY_SLACK_SECONDS / 86400
+
 /**
  * 公历推算的日期上界：kotlinx-datetime 的 [LocalDate] 年份范围止于 9999，
  * 与农历守护统一，公历/农历推算越界一律抛 [IllegalStateException]。
@@ -459,8 +462,9 @@ public fun Schedule.occurrences(
 /**
  * 周+星期选择器正向推算：自锚点周（ISO 周，周一起始）起每 [Schedule.repeatInterval]
  * 周为一个格点周，选中星期各产生一次出现，时刻逐出现按「日期 + 时刻 + 时区」
- * 组合（夏令时缺口顺延/重叠取较早的既有语义不变）。周索引自 now 的本地周直入
- * ——更早的周整体早于 now（本地日期序蕴含时刻序），无需逐周组合；锚点周内早于
+ * 组合（夏令时缺口顺延/重叠取较早的既有语义不变）。周索引自 now 的本地周减
+ * 时区不连续余量直入——余量外的更早周整体早于 now，无需逐周组合（余量内的
+ * 候选逐个组合判定，整日级跳变缺口中的时刻顺延由组合本身正确处理）；锚点周内早于
  * 锚点日的规则日不是出现（锚点恒为第一次出现，锚点星期在集合内已由构造期保证）。
  *
  * 次数封顶以闭式出现序号判定：周 0 自锚点星期起共 k−rank₀ 个出现（rank₀ 为锚点
@@ -481,10 +485,11 @@ private fun Schedule.nextWeekdayTarget(
     val stride = repeatInterval * 7L
 
     // now 超出 LocalDate 可表示年份（>9999）时取不到本地日期：以极值参与估计，
-    // 随后候选日期的范围守护立即拦截
+    // 随后候选日期的范围守护立即拦截。估计前移时区不连续余量：目标时刻落在
+    // 整日级缺口内时组合可顺延到次日，紧邻的更早周不再保证整体早于 now
     val nowEpochDays =
         runCatching { now.toLocalDateTime(zone).date.toEpochDays() }.getOrDefault(Int.MAX_VALUE.toLong())
-    var week = maxOf(0L, (nowEpochDays - weekStart) / stride)
+    var week = maxOf(0L, (nowEpochDays - ZONE_DISCONTINUITY_SLACK_DAYS - weekStart) / stride)
 
     while (true) {
         for (rank in sorted.indices) {
@@ -575,8 +580,9 @@ private fun weekdayOccurrenceWeek(
 /**
  * 月+选择器正向推算：自锚点月按 [Schedule.repeatInterval] 步进，每月以
  * [resolveMonthDays] 解析命中日（显式选择器取代锚点日收缩回弹），锚点月过滤
- * 早于锚点日的规则日。整月早于 now 本地日期的月份只推进出现计数、不逐出现组合
- * （月首日序蕴含时刻序）；边界月逐出现组合取首个不早于 now 者。次数封顶在计数
+ * 早于锚点日的规则日。整月早于 now 的月份（以月末最后命中日的组合时刻判定
+ * ——出现时刻沿日序单调，末位已过即全月已过）只推进出现计数、不逐出现组合；
+ * 边界月逐出现组合取首个不早于 now 者。次数封顶在计数
  * 上判定（锚点为第 1 次出现），完结返回 null。范围守护位于 nextTarget 的
  * [ProjectionRangeException] 分流之内。
  */
@@ -588,9 +594,6 @@ private fun Schedule.nextMonthSelectorTarget(
     until: Instant?,
 ): Instant? {
     val anchorMonthIndex = date.year * 12L + date.month.ordinal
-    // now 超出 LocalDate 可表示年份（>9999）时取不到本地日期：以极值参与跳过区
-    // 判定，随后月份范围守护立即拦截
-    val nowDate = runCatching { now.toLocalDateTime(zone).date }.getOrDefault(MAX_SUPPORTED_DATE)
     var seen = 0L
 
     var monthIndex = anchorMonthIndex
@@ -609,9 +612,11 @@ private fun Schedule.nextMonthSelectorTarget(
             monthIndex += repeatInterval
             continue
         }
-        // 整月早于 now：候选必然已过（本地日期序蕴含时刻序），只推进计数；
-        // 该月末出现的序号越过封顶即完结（首个不早于 now 的出现序号只会更大）
-        if (LocalDate(year, monthNumber, occurrences.last()) < nowDate) {
+        // 整月早于 now：只组合月末最后一个命中日判定（组合本身正确处理整日级
+        // 时区缺口的顺延，不能改用本地日期序比较——整日跳变会把缺口内的出现
+        // 顺延到次日），全月已过则只推进计数；该月末出现的序号越过封顶即完结
+        // （首个不早于 now 的出现序号只会更大）
+        if (compose(LocalDate(year, monthNumber, occurrences.last()), time, zone) < now) {
             seen += occurrences.size
             if (beyondCount(seen - 1)) return null
             monthIndex += repeatInterval
@@ -632,7 +637,8 @@ private fun Schedule.nextMonthSelectorTarget(
 /**
  * 月+选择器反向推算：自锚点月正向步进（与正向路径同构——出现序列单调，最后一个
  * 不晚于 before 者可沿正向遍历取得，避免回退估计在空月上失准）。整月不晚于
- * before 的月份只记录最近格点不组合；边界月逐出现组合，首个晚于 before 的候选
+ * before 的月份（以月末最后命中日的组合时刻判定，同正向路径）只记录最近格点
+ * 不逐出现组合；边界月逐出现组合，首个晚于 before 的候选
  * 出现即收尾。次数封顶：跳过区计数到达 count 时第 count 次出现的日号可由计数
  * 直定位（该月整体不晚于 before），组合即返；边界区取到第 count 次出现即返。
  * 推至范围上界仍未晚于 before 时返回界内最后一次出现（previous 语义不抛）。
@@ -644,7 +650,6 @@ private fun Schedule.previousMonthSelectorTarget(
     zone: TimeZone,
 ): Instant {
     val anchorMonthIndex = date.year * 12L + date.month.ordinal
-    val beforeDate = runCatching { before.toLocalDateTime(zone).date }.getOrDefault(MAX_SUPPORTED_DATE)
     var seen = 0L
     var lastBelow: Instant? = null
     // 跳过区最近格点（必然不晚于 before、未组合），收尾回退用；初值即锚点本身
@@ -670,9 +675,12 @@ private fun Schedule.previousMonthSelectorTarget(
             monthIndex += repeatInterval
             continue
         }
-        // 整月不晚于 before：候选必然不晚于 before，只记录格点与计数；计数到达
-        // count 时该月内直定位第 count 次出现组合即返（封顶后它就是最后的存在出现）
-        if (LocalDate(year, monthNumber, occurrences.last()) < beforeDate) {
+        // 整月不晚于 before：只组合月末最后一个命中日判定（组合本身正确处理
+        // 整日级时区缺口的顺延，不能改用本地日期序比较——整日跳变会把缺口内的
+        // 出现顺延到次日、晚于 before），末位不晚于即全月不晚于，只记录格点与
+        // 计数；计数到达 count 时该月内直定位第 count 次出现组合即返（封顶后
+        // 它就是最后的存在出现）
+        if (compose(LocalDate(year, monthNumber, occurrences.last()), time, zone) <= before) {
             if (repeatCount > 0 && seen + occurrences.size >= repeatCount) {
                 val cappedDay = occurrences[(repeatCount - seen - 1).toInt()]
                 return compose(LocalDate(year, monthNumber, cappedDay), time, zone)

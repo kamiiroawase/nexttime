@@ -150,7 +150,9 @@ public fun Schedule.toRruleOrNull(): String? =
  * - `BYSECOND/BYMINUTE/BYHOUR/BYMONTH/BYWEEKNO/BYYEARDAY/BYSETPOS` 拒绝
  *
  * `INTERVAL` 缺省为 1；允许携带 `RRULE:` 前缀；键重复、值非法、未知键均拒绝
- * （不静默忽略——静默丢规则比大声失败更危险）。
+ * （不静默忽略——静默丢规则比大声失败更危险）。名称与枚举值**区分大小写**：
+ * 仅接受大写形态（`FREQ=WEEKLY`、`BYDAY=MO`、`WKST=MO`），与 RFC 5545 名义上
+ * 的大小写不敏感不同——小写输入须调用方先行归一（导出恒为大写）。
  */
 public fun parseRrule(
     rrule: String,

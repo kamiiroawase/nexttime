@@ -10,8 +10,8 @@ plugins {
 
 // 回归基准模块：仅 JVM 目标、不发布（无 maven-publish/dokka）、不进 CI 门禁——
 // 计时抖动不适合做门禁，定位是本地/手动回归工具（README「最坏约 12 万步、实测
-// JVM 数十毫秒」等性能主张的复核锚点）。./gradlew build 只编译不执行基准，
-// 跑基准用 ./gradlew :benchmark:benchmark；基准类放 commonMain（0.5.x 约定，
+// JVM 数毫秒」等性能主张的复核锚点）。./gradlew build 只编译不执行基准，
+// 跑基准用 ./gradlew :benchmark:benchmark；基准类放 jvmMain（模块仅 JVM 目标，
 // benchmark 插件从 @Benchmark 方法生成 JMH 载体）
 kotlin {
     jvm {

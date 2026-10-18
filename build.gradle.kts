@@ -14,7 +14,8 @@ plugins {
     // ./gradlew build 即含格式检查
     id("nexttime.spotless")
 
-    // 公开 API 二进制兼容守护：api/nexttime.api 是已发布 API 的快照，有意改动
+    // 公开 API 二进制兼容守护：api/jvm/nexttime.api（JVM）与 api/nexttime.klib.api
+    // （iOS/wasmJs 的 klib）是已发布 API 的快照，有意改动
     // public 签名后跑 ./gradlew apiDump 更新并随提交评审；apiCheck 挂在 check
     // 上，./gradlew build 与两个 CI 工作流即含校验，防止无意的 API 破坏流出到
     // Maven Central
