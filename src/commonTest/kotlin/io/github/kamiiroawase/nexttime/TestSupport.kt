@@ -26,6 +26,11 @@ internal fun schedule(
     leapCount: Boolean = false,
     interval: Int = 0,
     unit: Int = 0,
+    weekdays: Set<Int> = emptySet(),
+    weekdayOrdinals: Set<Int> = emptySet(),
+    monthDays: Set<Int> = emptySet(),
+    clampMonthDays: Boolean = false,
+    repeatCount: Int = 0,
 ): Schedule =
     Schedule(
         lunar = lunar,
@@ -36,6 +41,11 @@ internal fun schedule(
         targetSecond = second,
         repeatInterval = interval,
         repeatUnit = unit,
+        weekdays = weekdays,
+        weekdayOrdinals = weekdayOrdinals,
+        monthDays = monthDays,
+        clampMonthDays = clampMonthDays,
+        repeatCount = repeatCount,
     )
 
 internal fun utcMillis(date: LocalDate): Long = date.atStartOfDayIn(TimeZone.UTC).toEpochMilliseconds()

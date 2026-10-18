@@ -3,9 +3,11 @@ package io.github.kamiiroawase.nexttime
 import com.tyme.lunar.LunarDay
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.TimeZone
+import kotlinx.datetime.isoDayNumber
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
@@ -34,6 +36,16 @@ class InvariantTest {
             schedule(utcMillis(LocalDate(1965, 6, 15)), interval = 1, unit = 4),
             schedule(solarMillis(LunarDay.fromYmd(2025, 6, 10).getSolarDay()), lunar = true, interval = 2, unit = 4),
             schedule(solarMillis(LunarDay.fromYmd(2025, -6, 1).getSolarDay()), lunar = true, leapCount = true, interval = 1, unit = 4),
+            // 周选择器：每周一三五、间隔 2 周的周三维度、锚点周部分（锚点周三）
+            schedule(utcMillis(LocalDate(2026, 8, 10)), 9, 0, 0, interval = 1, unit = 2, weekdays = setOf(1, 3, 5)),
+            schedule(utcMillis(LocalDate(2026, 8, 12)), interval = 2, unit = 2, weekdays = setOf(3, 4)),
+            // 月选择器：每月最后一天、每 2 月的 15 号、每月第二个周二、每月全部周一
+            schedule(utcMillis(LocalDate(2026, 1, 31)), interval = 1, unit = 3, monthDays = setOf(-1)),
+            schedule(utcMillis(LocalDate(2026, 1, 15)), interval = 2, unit = 3, monthDays = setOf(15)),
+            schedule(utcMillis(LocalDate(2026, 9, 8)), interval = 1, unit = 3, weekdays = setOf(2), weekdayOrdinals = setOf(2)),
+            schedule(utcMillis(LocalDate(2026, 9, 7)), interval = 1, unit = 3, weekdays = setOf(1)),
+            // 收缩模式多日：{30, 31} 在短月收月末
+            schedule(utcMillis(LocalDate(2026, 1, 31)), interval = 1, unit = 3, monthDays = setOf(30, 31), clampMonthDays = true),
         )
 
     // 扫多个 now：2027-03 已跨过 2026 农历年（无闰月）的腊月边界，
@@ -100,6 +112,73 @@ class InvariantTest {
             for (schedule in repeatingSchedules) {
                 val previous = schedule.previousTarget(now, zone) ?: continue
                 assertFalse(previous > schedule.nextTarget(now, zone)!!, "previous 晚于 next: $previous")
+            }
+        }
+    }
+
+    @Test
+    fun `星期选择器的出现落在选中星期上`() {
+        val weekdaySchedules = repeatingSchedules.filter { it.weekdays.isNotEmpty() }
+        for ((now, zone) in cases) {
+            for (schedule in weekdaySchedules) {
+                val next = schedule.nextTarget(now, zone)!!
+                // 锚点晚于 now 的日程（9 月锚点配 8 月 case）反向合法返回 null
+                val previous = schedule.previousTarget(now, zone) ?: continue
+                for (target in listOf(next, previous)) {
+                    val weekday = dateOf(target, zone).dayOfWeek.isoDayNumber
+                    assertTrue(weekday in schedule.weekdays, "出现落在未选中星期: $weekday")
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `月内日选择器的出现落在当月解析结果内`() {
+        val monthDaySchedules = repeatingSchedules.filter { it.monthDays.isNotEmpty() }
+        for ((now, zone) in cases) {
+            for (schedule in monthDaySchedules) {
+                val next = schedule.nextTarget(now, zone)!!
+                val previous = schedule.previousTarget(now, zone) ?: continue
+                for (target in listOf(next, previous)) {
+                    val date = dateOf(target, zone)
+                    val resolved =
+                        resolveMonthDays(
+                            date.year,
+                            date.month.ordinal + 1,
+                            schedule.monthDays,
+                            schedule.weekdays,
+                            schedule.weekdayOrdinals,
+                            schedule.clampMonthDays,
+                        )
+                    assertTrue(date.day in resolved, "出现日不在解析结果内: $date")
+                }
+            }
+        }
+    }
+
+    // 次数封顶日程组：完结判定使 next 可为 null，性质按完结与否分别断言
+    private val boundedSchedules =
+        listOf(
+            schedule(utcMillis(LocalDate(2026, 8, 20)), interval = 1, unit = 1, repeatCount = 10),
+            schedule(utcMillis(LocalDate(2026, 8, 19)), interval = 1, unit = 2, weekdays = setOf(1, 3, 5), repeatCount = 10),
+            schedule(utcMillis(LocalDate(2026, 8, 20)), interval = 1, unit = 3, monthDays = setOf(5, 20), repeatCount = 8),
+            schedule(utcMillis(LocalDate(2026, 1, 31)), interval = 1, unit = 3, monthDays = setOf(-1), repeatCount = 6),
+            schedule(solarMillis(LunarDay.fromYmd(2025, 6, 10).getSolarDay()), lunar = true, interval = 1, unit = 4, repeatCount = 2),
+        )
+
+    @Test
+    fun `次数封顶日程完结后previous钉在末次出现`() {
+        for ((now, zone) in cases) {
+            for (schedule in boundedSchedules) {
+                val next = schedule.nextTarget(now, zone)
+                val previous = schedule.previousTarget(now, zone)!!
+                if (next == null) {
+                    // 完结：previous 即第 count 次出现，其后一步也完结
+                    assertNull(schedule.nextTarget(previous + 1.nanoseconds, zone), "完结后仍有出现: $previous")
+                } else {
+                    assertFalse(previous > next, "previous 晚于 next: $previous")
+                    assertFalse(countdown(next, now).past)
+                }
             }
         }
     }

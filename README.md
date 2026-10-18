@@ -4,7 +4,7 @@
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.kamiiroawase/nexttime.svg)](https://central.sonatype.com/artifact/io.github.kamiiroawase/nexttime)
 [![License: Unlicense](https://img.shields.io/badge/license-Unlicense-blue.svg)](LICENSE)
 
-倒计时目标日推算库：给定日程的**目标日、时刻与重复规则，推算下一个目标时刻并给出倒计时状态**——公历与农历（闰月语义）重复、天/周/月/年/小时/分钟单位、任意时区夏令时安全。库只做计算、不输出任何语言文案，渲染交给消费方（见[本地化渲染](#本地化渲染)）。
+倒计时目标日推算库：给定日程的**目标日、时刻与重复规则，推算下一个目标时刻并给出倒计时状态**——公历与农历（闰月语义）重复、天/周/月/年/小时/分钟单位、星期与月内日选择器、出现次数上限与出现序列枚举、任意时区夏令时安全。库只做计算、不输出任何语言文案，渲染交给消费方（见[本地化渲染](#本地化渲染)）。
 
 Kotlin Multiplatform 库（commonMain 单一代码），农历历法基于 [tyme4kt](https://github.com/6tail/tyme4kt)，日期时间基于 [kotlinx-datetime](https://github.com/Kotlin/kotlinx-datetime) 与 `kotlin.time`。
 
@@ -20,7 +20,7 @@ repositories { mavenCentral() }
 dependencies {
     // KMP 消费方在 commonMain 引用根坐标（Gradle module metadata 自动解析平台变体）；
     // 需要钉住具体变体时见下表
-    implementation("io.github.kamiiroawase:nexttime:3.2.1")
+    implementation("io.github.kamiiroawase:nexttime:4.0.0")
 }
 ```
 
@@ -28,17 +28,17 @@ dependencies {
 
 | 消费平台 | 坐标 |
 |---|---|
-| Android | `io.github.kamiiroawase:nexttime-android:3.2.1` |
-| JVM | `io.github.kamiiroawase:nexttime-jvm:3.2.1` |
-| iOS 真机（arm64） | `io.github.kamiiroawase:nexttime-iosarm64:3.2.1` |
-| iOS 模拟器（arm64） | `io.github.kamiiroawase:nexttime-iossimulatorarm64:3.2.1` |
-| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:3.2.1` |
+| Android | `io.github.kamiiroawase:nexttime-android:4.0.0` |
+| JVM | `io.github.kamiiroawase:nexttime-jvm:4.0.0` |
+| iOS 真机（arm64） | `io.github.kamiiroawase:nexttime-iosarm64:4.0.0` |
+| iOS 模拟器（arm64） | `io.github.kamiiroawase:nexttime-iossimulatorarm64:4.0.0` |
+| wasmJs | `io.github.kamiiroawase:nexttime-wasm-js:4.0.0` |
 
 版本目录写法：
 
 ```toml
 [versions]
-nexttime = "3.2.1"
+nexttime = "4.0.0"
 
 [libraries]
 nexttime = { module = "io.github.kamiiroawase:nexttime", version.ref = "nexttime" }
@@ -46,8 +46,9 @@ nexttime = { module = "io.github.kamiiroawase:nexttime", version.ref = "nexttime
 
 tyme4kt 与 kotlinx-datetime 以传递依赖自动引入（tyme4kt 的 `com.tyme.*` API 亦可直接使用）；wasmJs 平台的 IANA 时区库已内嵌并随 klib 传递，消费方零配置。
 
-- **正反向推算**：`nextTarget()` 推进到下一个目标时刻（可带上限 `until`）；`previousTarget()` 取不晚于某时刻的最近一次出现；`anchor()` 暴露第一次出现
+- **正反向推算**：`nextTarget()` 推进到下一个目标时刻（可带上限 `until`）；`previousTarget()` 取不晚于某时刻的最近一次出现；`anchor()` 暴露第一次出现；`occurrences()` 惰性枚举出现序列（取前 N 次预览）
 - **公历与农历重复**：小时/分钟/天/周/月/年；小时/分钟为真实时长间隔（每 8 小时 = 8 个真实小时，跨日连续），天及以上为日历格点；农历月/年重复沿农历推进，闰月可选参与或跳过；月末收缩以锚点日为基准、后续回弹（1月31日 → 2月28日 → 3月31日），公历农历一致
+- **选择器与次数上限**：周重复配星期集合（每周一三五）、月重复配月内日（含每月最后一天）或第 n 个星期几（每月第二个周二、最后一个周五）；缺失日可选跳过或收缩到月末；`repeatCount` 限定出现总次数（含锚点，与 `until` 先到者生效）
 - **时区与夏令时安全**：目标日按 UTC 毫秒存储，组合时刻按指定时区；缺口时刻自动顺延（如纽约 02:30 → 03:30）、重叠取较早一次
 - **倒计时**：`countdown()` 输出「已过/未到 + 量级 + 单位」的结构化状态（可选进一模式）；`calendarCountdown()` 按日历细分年/月/日/时/分/秒（适合「X年X月X天」展示）
 - **性能**：天/周与农历重复的长跨度按周期直算或跳过远期历法换算；公历月/年重复沿日历逐步推进，量级有界（最坏约 12 万步、实测 JVM 数十毫秒）；反向推算复用同一套快路径
@@ -90,6 +91,8 @@ val state = countdown(next, now)              // Countdown(past = false, value =
 ```kotlin
 import io.github.kamiiroawase.nexttime.RepeatUnit
 import io.github.kamiiroawase.nexttime.Schedule
+import io.github.kamiiroawase.nexttime.WeekDay
+import io.github.kamiiroawase.nexttime.occurrences
 import kotlinx.datetime.LocalDate
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
@@ -144,6 +147,40 @@ val every8h = Schedule(
     repeatUnit = RepeatUnit.HOUR
 )
 
+// 每周一三五：锚点日自身的星期须在集合内（2026-08-10 是周一）
+// 锚点周内早于锚点日的规则日不算出现——锚点恒为第一次出现
+val monWedFri = Schedule(
+    targetDay = utcMillis(LocalDate(2026, 8, 10)),
+    targetHour = 9, targetMinute = 0, targetSecond = 0,
+    repeatInterval = 1,
+    repeatUnit = RepeatUnit.WEEK,
+    weekdays = setOf(WeekDay.MONDAY, WeekDay.WEDNESDAY, WeekDay.FRIDAY)
+)
+
+// 每月最后一天：-1 从月末起算；锚点日须是当月的规则日（1 月的 -1 是 31 日）
+val monthEnd = Schedule(
+    targetDay = utcMillis(LocalDate(2026, 1, 31)),
+    repeatInterval = 1,
+    repeatUnit = RepeatUnit.MONTH,
+    monthDays = setOf(-1)
+)
+
+// 每月第二个周二：星期 × 序数（1..5 第 n 个、-1..-5 倒数第 n 个）
+val secondTuesday = Schedule(
+    targetDay = utcMillis(LocalDate(2026, 9, 8)),  // 2026-09-08 正是第二个周二
+    repeatInterval = 1,
+    repeatUnit = RepeatUnit.MONTH,
+    weekdays = setOf(WeekDay.TUESDAY),
+    weekdayOrdinals = setOf(2)
+)
+
+// 只提醒有限次：出现总次数上限（含锚点），耗尽后 nextTarget 返回 null
+// 与 until 先到者生效——完结展示改锚定末次出现
+val tenTimes = anniversary.copy(repeatCount = 10)
+
+// 未来 5 次预览：惰性序列，首个元素等于 nextTarget(now, zone)
+val upcoming = monWedFri.occurrences(now, zone).take(5).toList()
+
 // 带结束时间的重复：结束后正向返回 null，完结展示改锚定「结束前最后一次出现」
 val end = LocalDateTime(2026, 12, 31).toInstant(zone)
 anniversary.nextTarget(now, zone, end)   // 出现晚于 end → null（锚点本身不受限）
@@ -167,6 +204,11 @@ anniversary.anchor(zone)                 // 第一次出现
 | `targetSecond` | Int | -1 | 目标秒，-1 表示未选 |
 | `repeatInterval` | Int | 0 | 重复间隔（0..100000），0 视为不重复 |
 | `repeatUnit` | Int | RepeatUnit.NONE | 重复单位，取 `RepeatUnit.NONE/DAY/WEEK/MONTH/YEAR/HOUR/MINUTE`；`NONE` 时无论间隔为何均按不重复处理（间隔被忽略，与 `repeatInterval = 0` 同效） |
+| `weekdays` | Set\<Int\> | 空集 | 星期选择器，取 `WeekDay.MONDAY..SUNDAY`（ISO：1..7）；配周或月重复。周重复在锚点周起每 interval 周的选中星期各出现一次；月重复配 `weekdayOrdinals` 定位每月第 n 个；**锚点日的星期须在集合内**，详见[选择器语义](#选择器语义) |
+| `weekdayOrdinals` | Set\<Int\> | 空集 | 月内序数（仅月重复 + `weekdays` 非空）：1..5 = 每月第 n 个、-1..-5 = 倒数第 n 个选中星期；空集 = 每月全部命中日；序数超界（第 5 个周二遇只有 4 个的月）该月跳过 |
+| `monthDays` | Set\<Int\> | 空集 | 月内日选择器（仅月重复、与 `weekdays` 互斥）：1..31 从月初、-31..-1 从月末（-1 即每月最后一天）；**锚点日的日号须在当月解析结果内** |
+| `clampMonthDays` | Boolean | false | `monthDays` 的正数日超出当月天数时：false = 该月跳过（iCalendar BYMONTHDAY 惯例）；true = 收缩到最近的端（正数收到月末、负数收到月初）并去重。空集时无效果 |
+| `repeatCount` | Int | 0 | 出现总次数上限（**含锚点**，RRULE COUNT 惯例），0 不限；耗尽后 `nextTarget` 返回 null、`previousTarget` 钳在末次出现，与 `until` 先到者生效；不重复日程配正次数构造期拒绝 |
 
 关于 `targetDay`：
 
@@ -177,7 +219,7 @@ anniversary.anchor(zone)                 // 第一次出现
 
 非法取值在构造时抛 `IllegalArgumentException`。
 
-### 推算：nextTarget / previousTarget / anchor
+### 推算：nextTarget / previousTarget / anchor / occurrences
 
 ```kotlin
 fun Schedule.nextTarget(
@@ -192,22 +234,50 @@ fun Schedule.previousTarget(
 ): Instant?
 
 fun Schedule.anchor(zone: TimeZone = TimeZone.currentSystemDefault()): Instant?
+
+fun Schedule.occurrences(
+    now: Instant = Clock.System.now(),
+    zone: TimeZone = TimeZone.currentSystemDefault(),
+    until: Instant? = null,
+): Sequence<Instant>
 ```
 
 | 场景 | 行为 |
 |---|---|
-| `targetDay == -1`（未选） | 三个函数都返回 null |
-| 不重复（`repeatInterval = 0` 或 `repeatUnit = NONE`，任一即视为不重复） | 返回目标日组合时刻，**已过也原样返回过去时刻**，不推进 |
+| `targetDay == -1`（未选） | 三个推算函数返回 null，`occurrences()` 为空序列 |
+| 不重复（`repeatInterval = 0` 或 `repeatUnit = NONE`，任一即视为不重复） | 返回目标日组合时刻，**已过也原样返回过去时刻**，不推进；`occurrences()` 为单元素序列 |
 | 重复正向 | 从锚点按周期推进到不早于 `now`；恰好等于 `now` 时不再推进 |
 | `until` 上限 | 重复出现晚于 `until` 时返回 null（序列单调，后续必然超限）；**锚点与非重复日程不受约束**——重复结束不能追溯取消锚点；`until` 早于 `now`，或界内已无不早于 `now` 的出现（推算越过支持范围即完结；9999-12-31 末秒组合加 48 小时余量只是免推算的快路径上界，实际最后一次出现可能更早）时直接返回 null，不为凑结论抛越界异常——`[now, until]` 内不可能再有界内出现 |
+| `repeatCount` 耗尽 | 正向返回 null（完结语义与 `until` 同形，两者**先到者生效**）；反向不返回序号越限的出现，钳在末次出现；count 含锚点——锚点自身不受影响 |
+| 选择器路径 | 周重复 + `weekdays`：锚点周起每 interval 周的选中星期各一次出现；月重复 + 选择器：出现日完全由选择器决定（**取代锚点日收缩回弹**）；锚点周/月内早于锚点日的规则日不算出现，详见[选择器语义](#选择器语义) |
+| `occurrences()` 序列 | 惰性枚举自首个不早于 `now` 的出现（含恰等于），重复沿用 nextTarget 全部语义——`until`/`repeatCount` 完结即序列终止；首个元素恒等于 `nextTarget(now, zone, until)`；取前 N 个用 `.take(n)`，每元素成本约等于一次 `nextTarget` 调用 |
 | 重复反向 | 不晚于 `before` 的最近一次出现（含恰等于）；`before` 早于锚点返回 null |
 | 推算越过 0001..9999 | 抛 `IllegalStateException`，不会死循环；例外——`previousTarget` 返回界内最后一次出现，`nextTarget` 带 `until` 时界内出现耗尽即完结返回 null（不带 `until` 的越界查询仍抛异常，答案不可表示） |
 | 时分秒全未选 | 按 00:00:00 组合（部分选择已在构造期拒绝，要整点须显式写全三个字段） |
 | 农历 + 天/周重复 | 与公历相同 |
 | 小时/分钟重复 | **真实时长格点**：出现 = 锚点 + 步数×间隔，跨日连续；`lunar` 无关；**不受 0001..9999 上界守护**（Instant 值域内任意推进） |
-| 月/年重复遇短月/平年 | 收缩到当月最接近锚点日的一天，后续回弹（1/31 → 2/28 → 3/31；2/29 → 平年 2/28 → 闰年 2/29） |
+| 月/年重复遇短月/平年 | 收缩到当月最接近锚点日的一天，后续回弹（1/31 → 2/28 → 3/31；2/29 → 平年 2/28 → 闰年 2/29）；配选择器的月重复不走此路径（由选择器决定，缺失日跳过或按 `clampMonthDays` 收缩） |
 
-夏令时的两套语义：天及以上单位每次出现独立按「日期 + 时刻 + 时区」组合（钟面格点）——缺口时刻顺延（仅影响当日）、重叠取较早一次，跨夏令时每天出现在同一本地时刻；`anchor()` 在锚点日落缺口时同样返回顺延后的时刻，恒等于第一次出现。小时/分钟按真实时长推进（ISO 8601 time-based 惯例）——间隔不变、跨夏令时本地钟面漂移 1 小时。
+夏令时的两套语义：天及以上单位每次出现独立按「日期 + 时刻 + 时区」组合（钟面格点）——缺口时刻顺延（仅影响当日）、重叠取较早一次，跨夏令时每天出现在同一本地时刻；`anchor()` 在锚点日落缺口时同样返回顺延后的时刻，恒等于第一次出现。小时/分钟按真实时长推进（ISO 8601 time-based 惯例）——间隔不变、跨夏令时本地钟面漂移 1 小时。选择器只决定出现**日期**，时刻组合与夏令时语义与无选择器完全一致。
+
+### 选择器语义
+
+选择器把「哪天出现」从锚点日推进改为显式规则，仅公历、仅周/月单位、须激活重复（lunar、DAY/HOUR/MINUTE/YEAR、不重复日程配选择器均构造期拒绝）：
+
+- **周格点**：ISO 周（周一起始）；锚点周 = 锚点日所在周，此后每 `repeatInterval` 周一个格点周，出现 = 格点周的选中星期 × 目标时刻
+- **锚点不变量**：出现序列 = 规则日中 **≥ 锚点日** 者——锚点周/锚点月内早于锚点日的规则日不产生出现；构造期要求锚点日自身是规则日（周：锚点星期 ∈ `weekdays`；月：锚点日 ∈ 当月解析结果，含 clamp 模式），保证 `anchor()` 恒为第一次出现
+- **月内规则**：`weekdays` + `weekdayOrdinals` 取笛卡尔积、月内按日期升序（`{周二}×{1,-1}` = 每月第一个和最后一个周二）；`monthDays` 与 `weekdays` 互斥，多日按升序（`{1, 15}` = 每月 1 号和 15 号）
+- **缺失日两模式**（`clampMonthDays`）：正数日超出当月天数时 false 跳过该月（`{30}` 遇 2 月无出现，RRULE BYMONTHDAY 惯例）、true 收缩到最近的端并去重（`{30, 31}` 在 2 月收为 28 日单次出现；`{31}` + true 与无选择器的锚点 31 日收缩语义等价）；负数日越界同理；**序数超界恒跳过**（第 5 个周二遇只有 4 个周二的月）
+- **选择器取代收缩**：配选择器的月重复中 `targetDay` 的日分量不参与推算——出现日完全由选择器决定
+
+| 目标 | 字段组合（interval = 1，unit 对应） |
+|---|---|
+| 每周一三五 | `unit = WEEK`，`weekdays = {MONDAY, WEDNESDAY, FRIDAY}` |
+| 每月最后一天 | `unit = MONTH`，`monthDays = {-1}` |
+| 每月 1 号和 15 号 | `unit = MONTH`，`monthDays = {1, 15}` |
+| 每月第二个周二 | `unit = MONTH`，`weekdays = {TUESDAY}`，`weekdayOrdinals = {2}` |
+| 每月最后一个周五 | `unit = MONTH`，`weekdays = {FRIDAY}`，`weekdayOrdinals = {-1}` |
+| 每月所有周一 | `unit = MONTH`，`weekdays = {MONDAY}`（ordinals 留空） |
 
 ### 倒计时：countdown / calendarCountdown
 
@@ -283,9 +353,12 @@ fun Countdown.zhText(): String {
 - **`nextTarget(now, zone)` 成对传**：传入非默认时区的 `now` 时务必同传 `zone`，否则日期按系统时区组合、时刻与 `now` 比较，语义静默分裂
 - **不重复日程不推进**：目标已过仍原样返回过去时刻，`countdown()` 会如实报告「已过」；需要自动推进请配置重复规则
 - **`countdown()` 只有单一量级**：没有周单位，也没有时分混合的复合细分（如「3天4小时」；钟面年月日时分秒复合细分用 `calendarCountdown()`）
+- **选择器仅公历、仅周/月单位**：`YEAR` 不支持选择器（构造拒绝）——「每年五月第二个周日」类规则暂不可表达；lunar 与 DAY/HOUR/MINUTE 单位配选择器同样拒绝；配选择器的月重复**不走锚点日收缩回弹**（出现日由选择器决定，见[选择器语义](#选择器语义)）
+- **`occurrences()` 每元素成本 ≈ 一次 `nextTarget` 调用**：含远期快路径，「未来 N 次」类预览绰绰有余；大跨度全量枚举（数万次出现）请评估成本后使用
 - **两套重复语义按单位分界**（ISO 8601 惯例）：天及以上为钟面格点（跨夏令时每天出现在同一本地时刻），小时/分钟为真实时长格点（间隔不变、本地钟面跨夏令时漂移 1 小时，且不受 0001..9999 上界守护、不抛越界异常）
 - **iOS 无 x64 模拟器目标**（对齐 tyme4kt 发布面，仅 arm64 真机与模拟器）；Android minSdk 24+、JVM 11+，无需 desugaring
 - **iOS 真机目标不执行测试**：Build 与 Release 工作流的 macOS job 均只跑模拟器目标（`iosSimulatorArm64Test`；Linux 上 iOS 测试无法运行，Release 的发布步骤以其通过为先决），真机目标（`iosArm64`）仅交叉编译验证——两者运行的是同一份 commonTest 代码
+- **3.x → 4.0 迁移**：`Schedule` 构造器新增 `weekdays` / `weekdayOrdinals` / `monthDays` / `clampMonthDays` / `repeatCount` 五个字段（均带默认值）——命名参数用法**源码兼容**，但构造器签名变更对已编译消费方为**二进制不兼容**，升级 4.0.0 需重新编译；行为无破坏性变更（全部新字段默认关闭，默认值下推算结果与 3.x 一致）
 - **2.x → 3.0 迁移**：坐标从 JitPack 的 `com.github.kamiiroawase.nexttime:nexttime-*` 迁到 Maven Central 的 `io.github.kamiiroawase:nexttime*`，包名同步从 `com.github.kamiiroawase.nexttime` 改为 `io.github.kamiiroawase.nexttime`（import 全量替换即可）；JitPack 上的 2.x 旧版本冻结不再维护
 
 ## 开发
@@ -297,7 +370,7 @@ cd nexttime
 ./gradlew jvmTest      # 单独跑某个平台
 ```
 
-170 个用例（`kotlin.test`，commonTest）覆盖公历/农历推算、闰月、月末收缩、DST 缺口/重叠/跳日、小时/分钟真实时长格点（含跨 DST 漂移与两千年长跨度）、范围边界与完结判定、正反对偶不变量、倒计时取整与日历分量；在 JVM、Android 单元测试与 wasm(Node) 上运行，iOS 模拟器由 macOS CI 执行。质量门禁全挂在 `build` 上：Spotless 格式、`explicitApi()` 显式 API、binary-compatibility-validator 公开 API 快照（有意变更时跑 `./gradlew apiDump`）。
+220 个用例（`kotlin.test`，commonTest）覆盖公历/农历推算、闰月、月末收缩、DST 缺口/重叠/跳日、小时/分钟真实时长格点（含跨 DST 漂移与两千年长跨度）、范围边界与完结判定、正反对偶不变量、倒计时取整与日历分量、周/月选择器（星期集合、月内日、序数与缺失日两模式、锚点隶属）、出现次数上限完结与出现序列；在 JVM、Android 单元测试与 wasm(Node) 上运行，iOS 模拟器由 macOS CI 执行。质量门禁全挂在 `build` 上：Spotless 格式、`explicitApi()` 显式 API、binary-compatibility-validator 公开 API 快照（有意变更时跑 `./gradlew apiDump`）。
 
 ## 许可
 

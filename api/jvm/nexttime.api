@@ -58,6 +58,8 @@ public final class io/github/kamiiroawase/nexttime/NextTimeKt {
 	public static final fun countdown (Lkotlin/time/Instant;Lkotlin/time/Instant;)Lio/github/kamiiroawase/nexttime/Countdown;
 	public static final fun nextTarget (Lio/github/kamiiroawase/nexttime/Schedule;Lkotlin/time/Instant;Lkotlinx/datetime/TimeZone;Lkotlin/time/Instant;)Lkotlin/time/Instant;
 	public static synthetic fun nextTarget$default (Lio/github/kamiiroawase/nexttime/Schedule;Lkotlin/time/Instant;Lkotlinx/datetime/TimeZone;Lkotlin/time/Instant;ILjava/lang/Object;)Lkotlin/time/Instant;
+	public static final fun occurrences (Lio/github/kamiiroawase/nexttime/Schedule;Lkotlin/time/Instant;Lkotlinx/datetime/TimeZone;Lkotlin/time/Instant;)Lkotlin/sequences/Sequence;
+	public static synthetic fun occurrences$default (Lio/github/kamiiroawase/nexttime/Schedule;Lkotlin/time/Instant;Lkotlinx/datetime/TimeZone;Lkotlin/time/Instant;ILjava/lang/Object;)Lkotlin/sequences/Sequence;
 	public static final fun previousTarget (Lio/github/kamiiroawase/nexttime/Schedule;Lkotlin/time/Instant;Lkotlinx/datetime/TimeZone;)Lkotlin/time/Instant;
 	public static synthetic fun previousTarget$default (Lio/github/kamiiroawase/nexttime/Schedule;Lkotlin/time/Instant;Lkotlinx/datetime/TimeZone;ILjava/lang/Object;)Lkotlin/time/Instant;
 }
@@ -85,9 +87,13 @@ public final class io/github/kamiiroawase/nexttime/Schedule {
 	public static final field Companion Lio/github/kamiiroawase/nexttime/Schedule$Companion;
 	public static final field MAX_REPEAT_INTERVAL I
 	public fun <init> ()V
-	public fun <init> (ZZJIIIII)V
-	public synthetic fun <init> (ZZJIIIIIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (ZZJIIIIILjava/util/Set;Ljava/util/Set;Ljava/util/Set;ZI)V
+	public synthetic fun <init> (ZZJIIIIILjava/util/Set;Ljava/util/Set;Ljava/util/Set;ZIILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Z
+	public final fun component10 ()Ljava/util/Set;
+	public final fun component11 ()Ljava/util/Set;
+	public final fun component12 ()Z
+	public final fun component13 ()I
 	public final fun component2 ()Z
 	public final fun component3 ()J
 	public final fun component4 ()I
@@ -95,21 +101,38 @@ public final class io/github/kamiiroawase/nexttime/Schedule {
 	public final fun component6 ()I
 	public final fun component7 ()I
 	public final fun component8 ()I
-	public final fun copy (ZZJIIIII)Lio/github/kamiiroawase/nexttime/Schedule;
-	public static synthetic fun copy$default (Lio/github/kamiiroawase/nexttime/Schedule;ZZJIIIIIILjava/lang/Object;)Lio/github/kamiiroawase/nexttime/Schedule;
+	public final fun component9 ()Ljava/util/Set;
+	public final fun copy (ZZJIIIIILjava/util/Set;Ljava/util/Set;Ljava/util/Set;ZI)Lio/github/kamiiroawase/nexttime/Schedule;
+	public static synthetic fun copy$default (Lio/github/kamiiroawase/nexttime/Schedule;ZZJIIIIILjava/util/Set;Ljava/util/Set;Ljava/util/Set;ZIILjava/lang/Object;)Lio/github/kamiiroawase/nexttime/Schedule;
 	public fun equals (Ljava/lang/Object;)Z
+	public final fun getClampMonthDays ()Z
 	public final fun getLeapCount ()Z
 	public final fun getLunar ()Z
+	public final fun getMonthDays ()Ljava/util/Set;
+	public final fun getRepeatCount ()I
 	public final fun getRepeatInterval ()I
 	public final fun getRepeatUnit ()I
 	public final fun getTargetDay ()J
 	public final fun getTargetHour ()I
 	public final fun getTargetMinute ()I
 	public final fun getTargetSecond ()I
+	public final fun getWeekdayOrdinals ()Ljava/util/Set;
+	public final fun getWeekdays ()Ljava/util/Set;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
 public final class io/github/kamiiroawase/nexttime/Schedule$Companion {
+}
+
+public final class io/github/kamiiroawase/nexttime/WeekDay {
+	public static final field FRIDAY I
+	public static final field INSTANCE Lio/github/kamiiroawase/nexttime/WeekDay;
+	public static final field MONDAY I
+	public static final field SATURDAY I
+	public static final field SUNDAY I
+	public static final field THURSDAY I
+	public static final field TUESDAY I
+	public static final field WEDNESDAY I
 }
 
