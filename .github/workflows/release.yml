@@ -66,6 +66,10 @@ jobs:
           path: |
             build/reports/tests/**
             build/test-results/**
+            serialization/build/reports/tests/**
+            serialization/build/test-results/**
+            rrule/build/reports/tests/**
+            rrule/build/test-results/**
           if-no-files-found: ignore
 
   release:
@@ -164,7 +168,19 @@ jobs:
             nexttime-jvm \
             nexttime-iosarm64 \
             nexttime-iossimulatorarm64 \
-            nexttime-wasm-js; do
+            nexttime-wasm-js \
+            nexttime-serialization \
+            nexttime-serialization-android \
+            nexttime-serialization-jvm \
+            nexttime-serialization-iosarm64 \
+            nexttime-serialization-iossimulatorarm64 \
+            nexttime-serialization-wasm-js \
+            nexttime-rrule \
+            nexttime-rrule-android \
+            nexttime-rrule-jvm \
+            nexttime-rrule-iosarm64 \
+            nexttime-rrule-iossimulatorarm64 \
+            nexttime-rrule-wasm-js; do
             find "$M2/$module" -type f ! -name 'maven-metadata-local.xml' -exec cp {} "$STAGE/" \;
           done
           echo "Collected $(find "$STAGE" -type f | wc -l) files"

@@ -1,0 +1,15 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64, wasmJs]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <io.github.kamiiroawase:serialization>
+final object io.github.kamiiroawase.nexttime.serialization/ScheduleSerializer : kotlinx.serialization/KSerializer<io.github.kamiiroawase.nexttime/Schedule> { // io.github.kamiiroawase.nexttime.serialization/ScheduleSerializer|null[0]
+    final val descriptor // io.github.kamiiroawase.nexttime.serialization/ScheduleSerializer.descriptor|{}descriptor[0]
+        final fun <get-descriptor>(): kotlinx.serialization.descriptors/SerialDescriptor // io.github.kamiiroawase.nexttime.serialization/ScheduleSerializer.descriptor.<get-descriptor>|<get-descriptor>(){}[0]
+
+    final fun deserialize(kotlinx.serialization.encoding/Decoder): io.github.kamiiroawase.nexttime/Schedule // io.github.kamiiroawase.nexttime.serialization/ScheduleSerializer.deserialize|deserialize(kotlinx.serialization.encoding.Decoder){}[0]
+    final fun serialize(kotlinx.serialization.encoding/Encoder, io.github.kamiiroawase.nexttime/Schedule) // io.github.kamiiroawase.nexttime.serialization/ScheduleSerializer.serialize|serialize(kotlinx.serialization.encoding.Encoder;io.github.kamiiroawase.nexttime.Schedule){}[0]
+}

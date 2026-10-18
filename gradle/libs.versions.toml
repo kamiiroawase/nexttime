@@ -5,12 +5,15 @@ dokka = "2.2.0"
 js-joda-timezone = "2.25.2"
 kotlin = "2.4.20"
 kotlinx-datetime = "0.8.0"
+kotlinx-serialization = "1.11.0"
 spotless = "8.10.3"
 tyme4kt = "1.5.0"
 vanniktechMavenPublish = "0.37.0"
 
 [libraries]
 kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
+kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "kotlinx-serialization" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 tyme4kt = { module = "cn.6tail:tyme4kt", version.ref = "tyme4kt" }
 
 [plugins]

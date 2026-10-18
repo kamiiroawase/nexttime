@@ -188,6 +188,72 @@ anniversary.previousTarget(end, zone)    // 不晚于 end 的最后一次出现
 anniversary.anchor(zone)                 // 第一次出现
 ```
 
+## 可选模块
+
+核心库零新增依赖，以下配套模块按需引入，与核心同版本发布、同一批平台变体（`-android`/`-jvm`/`-iosarm64`/`-iossimulatorarm64`/`-wasm-js`，钉变体写法同[上表](#使用)）。
+
+### nexttime-serialization
+
+`Schedule` 的 kotlinx-serialization 序列化器与 Android Parcelable 包装（依赖 `kotlinx-serialization-core`，Json 由消费方自带）：
+
+```kotlin
+implementation("io.github.kamiiroawase:nexttime-serialization:4.0.0")
+```
+
+```kotlin
+import io.github.kamiiroawase.nexttime.Schedule
+import io.github.kamiiroawase.nexttime.serialization.ScheduleSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+// 持久化（Room TypeConverter、DataStore 等）
+val text = Json.encodeToString(ScheduleSerializer, schedule)
+val restored = Json.decodeFromString(ScheduleSerializer, text)
+
+// 嵌入自己的可序列化模型
+@Serializable
+data class CountdownItem(
+    val title: String,
+    @Serializable(with = ScheduleSerializer::class) val schedule: Schedule,
+)
+```
+
+- **线格式字段名即契约**：13 个字段与 [Schedule 字段](#schedule-字段)的属性名一一对应、跨版本稳定；`Set<Int>` 字段编码为排序后的 JSON 数组（确定性线格式），解码接受任意顺序
+- 始终写全字段（与 `encodeDefaults` 无关）；解码走 `Schedule` 构造器**复跑全部校验**——损坏数据（字段越界、组合非法）抛 `SerializationException`，不静默产出非法日程
+- 未知字段的容忍性由消费方 Json 配置决定（`Json { ignoreUnknownKeys = true }` 跳过、默认报错）
+- Android 侧另有 `ScheduleParcel`（`Parcelable` 包装，进程重建与 Fragment/Activity 传参）：`ScheduleParcel(schedule)`，读回同样复跑校验
+
+### nexttime-rrule
+
+RFC 5545 RRULE 无损子集的双向转换——与系统日历、Google Calendar 等 iCalendar 生态互通：
+
+```kotlin
+implementation("io.github.kamiiroawase:nexttime-rrule:4.0.0")
+```
+
+```kotlin
+import io.github.kamiiroawase.nexttime.rrule.parseRrule
+import io.github.kamiiroawase.nexttime.rrule.toRrule
+import io.github.kamiiroawase.nexttime.rrule.toRruleOrNull
+import kotlinx.datetime.LocalDateTime
+
+// 导出：规则串只描述重复规则，锚点日期时刻（iCalendar 的 DTSTART）由调用方另行保存
+val rrule = schedule.toRrule()             // 如 "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH"
+val maybe = schedule.toRruleOrNull()       // 不可无损表达时 null
+
+// 导入：DTSTART 日期时刻 + RRULE 规则串（允许携带 RRULE: 前缀）
+val imported = parseRrule("FREQ=MONTHLY;BYDAY=2TU", LocalDateTime(2026, 9, 8, 9, 0))
+```
+
+**无损子集**——两侧语义完全一致才转换，否则抛 `RruleConversionException`：
+
+| 方向 | 接受 | 拒绝 |
+|---|---|---|
+| 导出 | 天/小时/分钟重复；周重复（含星期选择器，无选择器按锚点星期导出 BYDAY）；月重复配 `monthDays`（clamp=false，或条目全部在 1..28 ∪ -28..-1）或 `weekdays`±`weekdayOrdinals`；年重复（锚点非 2/29）；`repeatCount` → COUNT | 农历；月重复无选择器或 clamp 可达；锚点 2/29 的年重复（本库平年收 2/28、RFC 跳过该年）；不重复日程；`targetDay` 未选 |
+| 导入 | `FREQ=DAILY/WEEKLY/MONTHLY/YEARLY/HOURLY/MINUTELY`（WEEKLY 缺省 BYDAY 即 DTSTART 星期；MONTHLY 无 BY\* 映射为 `monthDays = {锚点日}`、clamp=false）；COUNT；`WKST=MO` | `UNTIL`（until 是 nextTarget 的查询期参数、非日程状态，结束时间请自行保存并与查询同传）；WEEKLY 带序数 BYDAY；`BYSECOND/BYMINUTE/BYHOUR/BYMONTH/BYWEEKNO/BYYEARDAY/BYSETPOS`；YEARLY 带 BY\*；锚点 2/29 的 YEARLY；锚点非规则日；语法错、重复键、未知键 |
+
+月重复的语义分界务必注意：本库**无选择器**月重复是锚点日收缩回弹（1/31 → 2/28 → 3/31），RFC BYMONTHDAY 是**缺日跳过**——`monthDays = {31}`（clamp=false）才是与 RFC 精确对应的形式，导入方向自动作此映射，导出方向要求显式选择器。
+
 ## API
 
 `Instant` / `Clock` 来自 `kotlin.time`。
@@ -370,7 +436,7 @@ cd nexttime
 ./gradlew jvmTest      # 单独跑某个平台
 ```
 
-220 个用例（`kotlin.test`，commonTest）覆盖公历/农历推算、闰月、月末收缩、DST 缺口/重叠/跳日、小时/分钟真实时长格点（含跨 DST 漂移与两千年长跨度）、范围边界与完结判定、正反对偶不变量、倒计时取整与日历分量、周/月选择器（星期集合、月内日、序数与缺失日两模式、锚点隶属）、出现次数上限完结与出现序列；在 JVM、Android 单元测试与 wasm(Node) 上运行，iOS 模拟器由 macOS CI 执行。质量门禁全挂在 `build` 上：Spotless 格式、`explicitApi()` 显式 API、binary-compatibility-validator 公开 API 快照（有意变更时跑 `./gradlew apiDump`）。
+237 个用例（`kotlin.test`，commonTest，核心 220 + serialization 8 + rrule 9）覆盖公历/农历推算、闰月、月末收缩、DST 缺口/重叠/跳日、小时/分钟真实时长格点（含跨 DST 漂移与两千年长跨度）、范围边界与完结判定、正反对偶不变量、倒计时取整与日历分量、周/月选择器（星期集合、月内日、序数与缺失日两模式、锚点隶属）、出现次数上限完结与出现序列、序列化线格式与解码校验、RRULE 无损子集双向转换；在 JVM、Android 单元测试与 wasm(Node) 上运行，iOS 模拟器由 macOS CI 执行。质量门禁全挂在 `build` 上（三模块同门禁）：Spotless 格式、`explicitApi()` 显式 API、binary-compatibility-validator 公开 API 快照（有意变更时跑 `./gradlew apiDump`，子模块为 `:serialization:apiDump` / `:rrule:apiDump`）。
 
 ## 许可
 

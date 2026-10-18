@@ -1,0 +1,15 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64, wasmJs]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <io.github.kamiiroawase:rrule>
+final class io.github.kamiiroawase.nexttime.rrule/RruleConversionException : kotlin/IllegalArgumentException { // io.github.kamiiroawase.nexttime.rrule/RruleConversionException|null[0]
+    constructor <init>(kotlin/String) // io.github.kamiiroawase.nexttime.rrule/RruleConversionException.<init>|<init>(kotlin.String){}[0]
+}
+
+final fun (io.github.kamiiroawase.nexttime/Schedule).io.github.kamiiroawase.nexttime.rrule/toRrule(): kotlin/String // io.github.kamiiroawase.nexttime.rrule/toRrule|toRrule@io.github.kamiiroawase.nexttime.Schedule(){}[0]
+final fun (io.github.kamiiroawase.nexttime/Schedule).io.github.kamiiroawase.nexttime.rrule/toRruleOrNull(): kotlin/String? // io.github.kamiiroawase.nexttime.rrule/toRruleOrNull|toRruleOrNull@io.github.kamiiroawase.nexttime.Schedule(){}[0]
+final fun io.github.kamiiroawase.nexttime.rrule/parseRrule(kotlin/String, kotlinx.datetime/LocalDateTime): io.github.kamiiroawase.nexttime/Schedule // io.github.kamiiroawase.nexttime.rrule/parseRrule|parseRrule(kotlin.String;kotlinx.datetime.LocalDateTime){}[0]

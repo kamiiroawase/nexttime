@@ -44,9 +44,10 @@ jobs:
         run: ./gradlew build
 
       # Maven Central 发布本身只在 Release 工作流（tag 推送、带凭据）执行；发布链路
-      # 的 CI 覆盖在这里：发布到本地 Maven 后断言 KMP 六模块（根 +
-      # android/jvm/iosArm64/iosSimulatorArm64/wasmJs）产物齐全、pom 中含 tyme4kt 与
-      # kotlinx-datetime 传递依赖。版本是当前 HEAD 推导出的任意值——普通 main 推送
+      # 的 CI 覆盖在这里：发布到本地 Maven 后断言三模块 KMP 十八构件（各 root+5 平台：
+      # 核心、serialization、rrule）齐全、pom 传递依赖正确（核心含 tyme4kt 与
+      # kotlinx-datetime，serialization 含 nexttime 与 kotlinx-serialization-core，
+      # rrule 含 nexttime）。版本是当前 HEAD 推导出的任意值——普通 main 推送
       # 按设计就是 0.0.0-SNAPSHOT（HEAD 在 tag 之后，已发布号子永不沾染未发布提交），
       # tag 版本只在 main HEAD 本身被打了 tag 时出现；精确 tag 推导的端到端守护在
       # Release 工作流（检出 tag）里
@@ -58,31 +59,44 @@ jobs:
           test "$(find "$ROOT" -mindepth 1 -maxdepth 1 -type d | wc -l)" -eq 1
           VERSION=$(find "$ROOT" -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | head -n 1)
           test -n "$VERSION"
-          A="$ROOT/$VERSION"
-          for art in \
-            "$A/nexttime-$VERSION.module" \
-            "$A/nexttime-$VERSION.jar" \
-            "$GROUP_DIR/nexttime-android/$VERSION/nexttime-android-$VERSION.aar" \
-            "$GROUP_DIR/nexttime-jvm/$VERSION/nexttime-jvm-$VERSION.jar" \
-            "$GROUP_DIR/nexttime-iosarm64/$VERSION/nexttime-iosarm64-$VERSION.klib" \
-            "$GROUP_DIR/nexttime-iossimulatorarm64/$VERSION/nexttime-iossimulatorarm64-$VERSION.klib" \
-            "$GROUP_DIR/nexttime-wasm-js/$VERSION/nexttime-wasm-js-$VERSION.klib"; do
-            test -f "$art" || { echo "missing artifact: $art"; exit 1; }
+          for module in nexttime nexttime-serialization nexttime-rrule; do
+            M="$GROUP_DIR/$module/$VERSION"
+            test -f "$M/$module-$VERSION.module" || { echo "missing artifact: $M/$module-$VERSION.module"; exit 1; }
+            test -f "$M/$module-$VERSION.jar" || { echo "missing artifact: $M/$module-$VERSION.jar"; exit 1; }
+            test -f "$M/$module-$VERSION.pom" || { echo "missing artifact: $M/$module-$VERSION.pom"; exit 1; }
           done
+          for module in nexttime nexttime-serialization nexttime-rrule; do
+            for art in \
+              "$GROUP_DIR/$module-android/$VERSION/$module-android-$VERSION.aar" \
+              "$GROUP_DIR/$module-jvm/$VERSION/$module-jvm-$VERSION.jar" \
+              "$GROUP_DIR/$module-iosarm64/$VERSION/$module-iosarm64-$VERSION.klib" \
+              "$GROUP_DIR/$module-iossimulatorarm64/$VERSION/$module-iossimulatorarm64-$VERSION.klib" \
+              "$GROUP_DIR/$module-wasm-js/$VERSION/$module-wasm-js-$VERSION.klib"; do
+              test -f "$art" || { echo "missing artifact: $art"; exit 1; }
+            done
+          done
+          A="$GROUP_DIR/nexttime/$VERSION"
           grep -q cn.6tail "$A/nexttime-$VERSION.pom"
           grep -q kotlinx-datetime "$A/nexttime-$VERSION.pom"
+          grep -q "nexttime" "$GROUP_DIR/nexttime-serialization/$VERSION/nexttime-serialization-$VERSION.pom"
+          grep -q kotlinx-serialization-core "$GROUP_DIR/nexttime-serialization/$VERSION/nexttime-serialization-$VERSION.pom"
+          grep -q "nexttime" "$GROUP_DIR/nexttime-rrule/$VERSION/nexttime-rrule-$VERSION.pom"
           echo "Published artifacts verified: $VERSION"
 
       # KDoc 生成的 API 参考文档，精心维护的文档无需本地跑 Dokka 即可浏览；
-      # 以工作流产物上传（后续如有值得接的文档部署，可再挂 Pages）
+      # 以工作流产物上传（后续如有值得接的文档部署，可再挂 Pages）——根模块与
+      # 两个可选模块（serialization/rrule）一并生成
       - name: Generate API documentation
-        run: ./gradlew dokkaGeneratePublicationHtml
+        run: ./gradlew dokkaGeneratePublicationHtml :serialization:dokkaGeneratePublicationHtml :rrule:dokkaGeneratePublicationHtml
 
       - name: Upload API documentation
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: api-docs
-          path: build/dokka/html/**
+          path: |
+            build/dokka/html/**
+            serialization/build/dokka/html/**
+            rrule/build/dokka/html/**
 
       - name: Upload test reports
         if: always()
@@ -92,6 +106,10 @@ jobs:
           path: |
             build/reports/tests/**
             build/test-results/**
+            serialization/build/reports/tests/**
+            serialization/build/test-results/**
+            rrule/build/reports/tests/**
+            rrule/build/test-results/**
           if-no-files-found: ignore
 
   # iOS 模拟器测试需要 macOS；ubuntu job 已覆盖编译交叉验证
@@ -123,4 +141,8 @@ jobs:
           path: |
             build/reports/tests/**
             build/test-results/**
+            serialization/build/reports/tests/**
+            serialization/build/test-results/**
+            rrule/build/reports/tests/**
+            rrule/build/test-results/**
           if-no-files-found: ignore

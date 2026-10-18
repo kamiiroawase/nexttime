@@ -1,0 +1,9 @@
+public final class io/github/kamiiroawase/nexttime/serialization/ScheduleSerializer : kotlinx/serialization/KSerializer {
+	public static final field INSTANCE Lio/github/kamiiroawase/nexttime/serialization/ScheduleSerializer;
+	public fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Lio/github/kamiiroawase/nexttime/Schedule;
+	public synthetic fun deserialize (Lkotlinx/serialization/encoding/Decoder;)Ljava/lang/Object;
+	public fun getDescriptor ()Lkotlinx/serialization/descriptors/SerialDescriptor;
+	public fun serialize (Lkotlinx/serialization/encoding/Encoder;Lio/github/kamiiroawase/nexttime/Schedule;)V
+	public synthetic fun serialize (Lkotlinx/serialization/encoding/Encoder;Ljava/lang/Object;)V
+}
+

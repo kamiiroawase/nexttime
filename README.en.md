@@ -196,6 +196,73 @@ anniversary.previousTarget(end, zone)    // the last occurrence at or before end
 anniversary.anchor(zone)                 // the first occurrence
 ```
 
+## Optional modules
+
+The core library takes zero new dependencies; these companion modules are opt-in, published at the same version with the same platform variants (`-android`/`-jvm`/`-iosarm64`/`-iossimulatorarm64`/`-wasm-js`, pinned like the [table above](#usage)).
+
+### nexttime-serialization
+
+A kotlinx-serialization serializer for `Schedule` plus an Android Parcelable wrapper (depends on `kotlinx-serialization-core`; Json stays with the consumer):
+
+```kotlin
+implementation("io.github.kamiiroawase:nexttime-serialization:4.0.0")
+```
+
+```kotlin
+import io.github.kamiiroawase.nexttime.Schedule
+import io.github.kamiiroawase.nexttime.serialization.ScheduleSerializer
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+
+// Persistence (a Room TypeConverter, DataStore, …)
+val text = Json.encodeToString(ScheduleSerializer, schedule)
+val restored = Json.decodeFromString(ScheduleSerializer, text)
+
+// Embed in your own serializable models
+@Serializable
+data class CountdownItem(
+    val title: String,
+    @Serializable(with = ScheduleSerializer::class) val schedule: Schedule,
+)
+```
+
+- **Wire field names are the contract**: the 13 fields map one-to-one onto the [Schedule fields](#schedule-fields) property names, stable across versions; `Set<Int>` fields encode as sorted JSON arrays (deterministic wire format), decoding accepts any order
+- All fields are always written (independent of `encodeDefaults`); decoding goes through the `Schedule` constructor and **re-runs every validation** — corrupted data (out-of-range fields, illegal combinations) throws `SerializationException` instead of silently producing an invalid schedule
+- Unknown-field tolerance is the consumer's Json configuration (`Json { ignoreUnknownKeys = true }` skips; the default errors)
+- Android additionally gets `ScheduleParcel` (a `Parcelable` wrapper for process death and Fragment/Activity arguments): `ScheduleParcel(schedule)`, re-validated on read
+
+### nexttime-rrule
+
+Bidirectional conversion of a lossless RFC 5545 RRULE subset — interop with the iCalendar ecosystem (system calendars, Google Calendar):
+
+```kotlin
+implementation("io.github.kamiiroawase:nexttime-rrule:4.0.0")
+```
+
+```kotlin
+import io.github.kamiiroawase.nexttime.rrule.parseRrule
+import io.github.kamiiroawase.nexttime.rrule.toRrule
+import io.github.kamiiroawase.nexttime.rrule.toRruleOrNull
+import kotlinx.datetime.LocalDateTime
+
+// Export: the rule string describes the repeat rule only; the anchor date-time
+// (iCalendar's DTSTART) is kept by the caller
+val rrule = schedule.toRrule()             // e.g. "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH"
+val maybe = schedule.toRruleOrNull()       // null when not losslessly expressible
+
+// Import: the DTSTART date-time + the RRULE string (an RRULE: prefix is accepted)
+val imported = parseRrule("FREQ=MONTHLY;BYDAY=2TU", LocalDateTime(2026, 9, 8, 9, 0))
+```
+
+**Lossless subset** — conversion happens only when both sides agree semantically; otherwise an `RruleConversionException` is thrown:
+
+| Direction | Accepted | Rejected |
+|---|---|---|
+| Export | day/hour/minute repeats; week repeats (weekday selectors included; without selectors BYDAY is the anchor weekday); month repeats with `monthDays` (clamp = false, or every entry within 1..28 ∪ -28..-1) or `weekdays`±`weekdayOrdinals`; year repeats (anchor not Feb 29); `repeatCount` → COUNT | lunar; month repeats without selectors or with reachable clamping; Feb 29-anchored year repeats (this library shrinks to Feb 28, RFC skips the year); non-repeating schedules; unset `targetDay` |
+| Import | `FREQ=DAILY/WEEKLY/MONTHLY/YEARLY/HOURLY/MINUTELY` (WEEKLY's default BYDAY is the DTSTART weekday; MONTHLY without BY\* maps to `monthDays = {anchor day}`, clamp = false); COUNT; `WKST=MO` | `UNTIL` (until is a per-query argument of nextTarget, not schedule state — keep end times on your side and pass them with queries); ordinal BYDAY on WEEKLY; `BYSECOND/BYMINUTE/BYHOUR/BYMONTH/BYWEEKNO/BYYEARDAY/BYSETPOS`; YEARLY with BY\*; YEARLY anchored on Feb 29; an anchor that is not a rule day; syntax errors, duplicate or unknown keys |
+
+Mind the month-repeat semantic divide: this library's **selector-less** month repeat is anchor-day shrink/rebound (1/31 → 2/28 → 3/31) while RFC BYMONTHDAY **skips missing days** — `monthDays = {31}` (clamp = false) is the exact RFC counterpart; the import direction applies that mapping automatically, and export requires explicit selectors.
+
 ## API
 
 `Instant` / `Clock` come from `kotlin.time`.
@@ -378,7 +445,7 @@ cd nexttime
 ./gradlew jvmTest      # one platform
 ```
 
-220 test cases (`kotlin.test`, commonTest) cover solar/lunar derivation, leap months, month-end shrink, DST gaps/overlaps/skipped days, hour/minute true-duration grid points (including DST drift and two-millennia spans), range boundaries and completion semantics, forward/backward dual invariants, countdown rounding and calendar components, week/month selectors (weekday sets, month days, ordinals and the two missing-day modes, anchor membership), occurrence-count completion and occurrence sequences; they run on JVM, Android unit tests and wasm (Node), with the iOS simulator executed by macOS CI. Quality gates hang off `build`: Spotless formatting, `explicitApi()` explicit API, binary-compatibility-validator public-API snapshots (run `./gradlew apiDump` for intentional changes).
+237 test cases (`kotlin.test`, commonTest — 220 core + 8 serialization + 9 rrule) cover solar/lunar derivation, leap months, month-end shrink, DST gaps/overlaps/skipped days, hour/minute true-duration grid points (including DST drift and two-millennia spans), range boundaries and completion semantics, forward/backward dual invariants, countdown rounding and calendar components, week/month selectors (weekday sets, month days, ordinals and the two missing-day modes, anchor membership), occurrence-count completion and occurrence sequences, serialization wire format and decode validation, and bidirectional RRULE conversion; they run on JVM, Android unit tests and wasm (Node), with the iOS simulator executed by macOS CI. Quality gates hang off `build` for all three modules: Spotless formatting, `explicitApi()` explicit API, binary-compatibility-validator public-API snapshots (run `./gradlew apiDump` for intentional changes; child modules via `:serialization:apiDump` / `:rrule:apiDump`).
 
 ## License
 
