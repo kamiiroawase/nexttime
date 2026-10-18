@@ -250,7 +250,7 @@ val imported = parseRrule("FREQ=MONTHLY;BYDAY=2TU", LocalDateTime(2026, 9, 8, 9,
 | 方向 | 接受 | 拒绝 |
 |---|---|---|
 | 导出 | 天/小时/分钟重复；周重复（含星期选择器，无选择器按锚点星期导出 BYDAY）；月重复配 `monthDays`（clamp=false，或条目全部在 1..28 ∪ -28..-1）或 `weekdays`±`weekdayOrdinals`；年重复（锚点非 2/29）；`repeatCount` → COUNT | 农历；月重复无选择器或 clamp 可达；锚点 2/29 的年重复（本库平年收 2/28、RFC 跳过该年）；不重复日程；`targetDay` 未选 |
-| 导入 | `FREQ=DAILY/WEEKLY/MONTHLY/YEARLY/HOURLY/MINUTELY`（WEEKLY 缺省 BYDAY 即 DTSTART 星期；MONTHLY 无 BY\* 映射为 `monthDays = {锚点日}`、clamp=false）；COUNT；`WKST=MO` | `UNTIL`（until 是 nextTarget 的查询期参数、非日程状态，结束时间请自行保存并与查询同传）；WEEKLY 带序数 BYDAY；`BYSECOND/BYMINUTE/BYHOUR/BYMONTH/BYWEEKNO/BYYEARDAY/BYSETPOS`；YEARLY 带 BY\*；锚点 2/29 的 YEARLY；锚点非规则日；语法错、重复键、未知键 |
+| 导入 | `FREQ=DAILY/WEEKLY/MONTHLY/YEARLY/HOURLY/MINUTELY`（WEEKLY 缺省 BYDAY 即 DTSTART 星期；MONTHLY 无 BY\* 映射为 `monthDays = {锚点日}`、clamp=false；MONTHLY 带序数 BYDAY 限完整笛卡尔积——共享单一序数（`1MO,1TU`）或每星期带全部序数（`1MO,-1MO,1TU,-1TU`），RFC 条目独立展开、非完整积无法无损表达）；COUNT；`WKST=MO` | `UNTIL`（until 是 nextTarget 的查询期参数、非日程状态，结束时间请自行保存并与查询同传）；WEEKLY 带序数 BYDAY；MONTHLY 序数 BYDAY 非完整积或混合序数（`1MO,-1TU`、`MO,1TU`）；`BYSECOND/BYMINUTE/BYHOUR/BYMONTH/BYWEEKNO/BYYEARDAY/BYSETPOS`；YEARLY 带 BY\*；锚点 2/29 的 YEARLY；锚点非规则日；语法错、重复键、未知键 |
 
 月重复的语义分界务必注意：本库**无选择器**月重复是锚点日收缩回弹（1/31 → 2/28 → 3/31），RFC BYMONTHDAY 是**缺日跳过**——`monthDays = {31}`（clamp=false）才是与 RFC 精确对应的形式，导入方向自动作此映射，导出方向要求显式选择器。
 

@@ -519,8 +519,11 @@ private fun Schedule.previousWeekdayTarget(
     val weekStart = anchorEpochDays - (date.dayOfWeek.isoDayNumber - 1)
     val stride = repeatInterval * 7L
 
+    // before 超出 LocalDate 可表示年份时取不到本地日期：以支持范围上界参与估计
+    // （反向自界内最后一周回退）。不能取 Long.MAX_VALUE——锚点在 1970 年前时
+    // weekStart 为负，极值相减回绕成大负数、起始周被钳到 0，会错回锚点附近
     val beforeEpochDays =
-        runCatching { before.toLocalDateTime(zone).date.toEpochDays() }.getOrDefault(Long.MAX_VALUE)
+        runCatching { before.toLocalDateTime(zone).date.toEpochDays() }.getOrDefault(MAX_SUPPORTED_EPOCH_DAYS)
     val maxSupportedWeek = (MAX_SUPPORTED_EPOCH_DAYS - weekStart) / stride
     var week =
         minOf(

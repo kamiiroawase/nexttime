@@ -3,7 +3,9 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.kotlinx.benchmark)
-    alias(libs.plugins.spotless)
+
+    // 共享的格式约定（buildSrc 约定插件）；本模块不发布，不走 nexttime.publishing
+    id("nexttime.spotless")
 }
 
 // 回归基准模块：仅 JVM 目标、不发布（无 maven-publish/dokka）、不进 CI 门禁——
@@ -40,16 +42,5 @@ benchmark {
         iterationTimeUnit = "ms"
         mode = "avgt"
         outputTimeUnit = "us"
-    }
-}
-
-spotless {
-    kotlin {
-        target("src/**/*.kt")
-        ktlint()
-    }
-    kotlinGradle {
-        target("*.gradle.kts")
-        ktlint()
     }
 }

@@ -1,3 +1,5 @@
+import com.vanniktech.maven.publish.MavenPublishBaseExtension
+import io.github.kamiiroawase.nexttime.conventions.NexttimePublishingExtension
 import org.gradle.api.provider.ValueSource
 import org.gradle.api.provider.ValueSourceParameters
 import org.jetbrains.kotlin.gradle.ExperimentalWasmDsl
@@ -6,8 +8,11 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.kotlin.multiplatform.library)
-    alias(libs.plugins.spotless)
     alias(libs.plugins.maven.publish)
+
+    // 共享的格式约定（buildSrc 约定插件）：spotlessCheck 挂在 check 上，
+    // ./gradlew build 即含格式检查
+    id("nexttime.spotless")
 
     // 公开 API 二进制兼容守护：api/nexttime.api 是已发布 API 的快照，有意改动
     // public 签名后跑 ./gradlew apiDump 更新并随提交评审；apiCheck 挂在 check
@@ -19,8 +24,6 @@ plugins {
     // 产物上传）；配置取 Dokka 多平台默认值
     alias(libs.plugins.dokka)
 }
-
-group = "io.github.kamiiroawase"
 
 // 版本唯一来源：HEAD 恰好落在 v* tag 上（CI 需完整克隆 fetch-depth=0；发布工作流
 // 的 tag 检出正是这个形态）＞ 0.0.0-SNAPSHOT（其余一切：HEAD 不在 tag 上、无 git 环境）。
@@ -112,80 +115,99 @@ apiValidation {
     }
 }
 
-// ktlint 风格与 gradle.properties 的 kotlin.code.style=official 一致；
-// spotlessCheck 自动挂在 check 上，./gradlew build 即含格式检查
-spotless {
-    kotlin {
-        target("src/**/*.kt")
-        ktlint()
-    }
-    kotlinGradle {
-        target("*.gradle.kts")
-        ktlint()
-    }
-}
+// —— 发布接线的单一副本（根模块与 serialization/rrule 共用）——
+// 曾以三份脚本各自维护（拷贝漂移把子模块的守卫错误提示抄丢过字符），收敛于此。
+// 经 allprojects + withPlugin 钩子而非 buildSrc 约定插件：vanniktech 检测
+// Kotlin/Android 插件时按名加载其类，与各模块经 alias 应用的 KGP/AGP 分处
+// buildSrc 与主构建两个类加载域会失败（alias 又与类路径上的同 id 插件冲突），
+// 钩子在根脚本内执行则与被应用插件同域。模块差异经 nexttimePublishing 扩展
+// 声明（buildSrc 的纯值对象，跨域安全）
+allprojects {
+    group = "io.github.kamiiroawase"
 
-// 发布工作流以 ORG_GRADLE_PROJECT_signingInMemoryKey 传入 GPG 私钥，插件自行把它接入
-// Gradle 的 signing 扩展。此处守门两件事：空值视为未配置——publishToMavenLocal 无
-// 密钥也能跑（Build 工作流的发布校验依赖这一点）；非空值必须是完整的 ASCII 甲胄
-// 私钥，缺失/改名/拷坏的 secret 带着指引失败，而不是 Gradle 玄妙的
-// "Could not read PGP secret key"
-val signingKey =
-    providers
-        .gradleProperty("signingInMemoryKey")
-        .orNull
-        ?.replace("\r\n", "\n")
-        ?.trim()
-        ?.takeIf { it.isNotEmpty() }
-if (signingKey != null) {
-    require(
-        signingKey.startsWith("-----BEGIN PGP PRIVATE KEY BLOCK-----") &&
-            signingKey.endsWith("-----END PGP PRIVATE KEY BLOCK-----"),
-    ) {
-        "signingInMemoryKey is not a complete ASCII-armored PGP secret key (expected the " +
-            "-----BEGIN/END PGP PRIVATE KEY BLOCK----- lines). Re-export with " +
-            "'gpg --export-secret-keys --armor <key id>' and store the full output in the " +
-            "ORG_GRADLE_PROJECT_signingInMemoryKey secret — a partially copied key or one " +
-            "stored with literal \\n escapes fails to parse"
-    }
-}
+    val module = extensions.create<NexttimePublishingExtension>("nexttimePublishing")
+    module.artifactId.convention(name)
+    module.displayName.convention(name)
 
-// vanniktech 插件走 Maven Central 发布：每个 KMP 目标的构件（含 KMP 消费方在
-// commonMain 引用的根 Gradle 模块构件）一次 publishToMavenCentral 完成签名并上传
-// Central Portal。发布工作流以环境变量映射的 gradle 属性提供凭据与 GPG 私钥
-// （ORG_GRADLE_PROJECT_mavenCentralUsername/Password、
-// ORG_GRADLE_PROJECT_signingInMemoryKey/KeyPassword）
-mavenPublishing {
-    // automaticRelease：上传后立即关闭并发布 staging 部署，绿色 tag 推送无需人工访问门户
-    publishToMavenCentral(automaticRelease = true)
-
+    // 发布工作流以 ORG_GRADLE_PROJECT_signingInMemoryKey 传入 GPG 私钥，插件自行把它接入
+    // Gradle 的 signing 扩展。此处守门两件事：空值视为未配置——publishToMavenLocal 无
+    // 密钥也能跑（Build 工作流的发布校验依赖这一点）；非空值必须是完整的 ASCII 甲胄
+    // 私钥，缺失/改名/拷坏的 secret 带着指引失败，而不是 Gradle 玄妙的
+    // "Could not read PGP secret key"
+    val signingKey =
+        providers
+            .gradleProperty("signingInMemoryKey")
+            .orNull
+            ?.replace("\r\n", "\n")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
     if (signingKey != null) {
-        signAllPublications()
+        require(
+            signingKey.startsWith("-----BEGIN PGP PRIVATE KEY BLOCK-----") &&
+                signingKey.endsWith("-----END PGP PRIVATE KEY BLOCK-----"),
+        ) {
+            "signingInMemoryKey is not a complete ASCII-armored PGP secret key (expected the " +
+                "-----BEGIN/END PGP PRIVATE KEY BLOCK----- lines). Re-export with " +
+                "'gpg --export-secret-keys --armor <key id>' and store the full output in the " +
+                "ORG_GRADLE_PROJECT_signingInMemoryKey secret — a partially copied key or one " +
+                "stored with literal \\n escapes fails to parse"
+        }
     }
 
-    pom {
-        name.set("nexttime")
-        description.set("Countdown target date calculation for solar and lunar calendars")
-        url.set("https://github.com/kamiiroawase/nexttime")
-        licenses {
-            license {
-                name.set("The Unlicense")
-                url.set("https://unlicense.org")
+    // vanniktech 插件走 Maven Central 发布：每个 KMP 目标的构件（含 KMP 消费方在
+    // commonMain 引用的根 Gradle 模块构件）一次 publishToMavenCentral 完成签名并上传
+    // Central Portal。发布工作流以环境变量映射的 gradle 属性提供凭据与 GPG 私钥
+    // （ORG_GRADLE_PROJECT_mavenCentralUsername/Password、
+    // ORG_GRADLE_PROJECT_signingInMemoryKey/KeyPassword）。
+    // pom 在插件应用时（模块 plugins 块内）接线：模块差异字段经 Provider 惰性解析到
+    // 脚本体赋值的终值；coordinates 是急切调用，推迟到 afterEvaluate 取终值
+    pluginManager.withPlugin("com.vanniktech.maven.publish") {
+        extensions.configure<MavenPublishBaseExtension> {
+            // automaticRelease：上传后立即关闭并发布 staging 部署，绿色 tag 推送无需人工访问门户
+            publishToMavenCentral(automaticRelease = true)
+
+            if (signingKey != null) {
+                signAllPublications()
+            }
+
+            pom {
+                name.set(module.displayName)
+                description.set(module.descriptionText)
+                url.set("https://github.com/kamiiroawase/nexttime")
+                licenses {
+                    license {
+                        name.set("The Unlicense")
+                        url.set("https://unlicense.org/")
+                    }
+                }
+                developers {
+                    developer {
+                        id.set("kamiiroawase")
+                        name.set("紅葉")
+                        url.set("https://github.com/kamiiroawase")
+                    }
+                }
+                scm {
+                    url.set("https://github.com/kamiiroawase/nexttime")
+                    connection.set("scm:git:https://github.com/kamiiroawase/nexttime.git")
+                    developerConnection.set("scm:git:git@github.com:kamiiroawase/nexttime.git")
+                }
             }
         }
-        developers {
-            developer {
-                id.set("kamiiroawase")
-                name.set("紅葉")
-                url.set("https://github.com/kamiiroawase")
+        afterEvaluate {
+            // Gradle 项目名（serialization/rrule）不是构件名：显式指定 nexttime-*，
+            // KMP 平台变体（-android/-jvm/-iosarm64/…）由插件从构件名派生
+            if (module.artifactId.get() != name) {
+                extensions.configure<MavenPublishBaseExtension> { coordinates(artifactId = module.artifactId.get()) }
             }
-        }
-        scm {
-            url.set("https://github.com/kamiiroawase/nexttime")
-            connection.set("scm:git:https://github.com/kamiiroawase/nexttime.git")
-            developerConnection.set("scm:git:git@github.com:kamiiroawase/nexttime.git")
         }
     }
+}
+
+// 根模块的发布差异：构件基名缺省取项目名 nexttime，无需覆写
+configure<NexttimePublishingExtension> {
+    displayName = "nexttime"
+    descriptionText = "Countdown target date calculation for solar and lunar calendars"
 }
 
 // ValueSource 方式读取 git tag，对配置缓存安全（重用缓存时也会重新求值）；类体不

@@ -139,7 +139,10 @@ public fun Schedule.toRruleOrNull(): String? =
  * - `FREQ=DAILY/HOURLY/MINUTELY`（不得带 BYDAY/BYMONTHDAY）；`FREQ=WEEKLY`
  *   （BYDAY 可省——RFC 缺省即 DTSTART 星期；不得带序数、BYMONTHDAY）；
  *   `FREQ=MONTHLY`（无 BY* 时按 RFC「DTSTART 日号、缺日跳过」映射为
- *   `monthDays = {锚点日}`；BYMONTHDAY 与 BYDAY 互斥——对应本库互斥选择器）；
+ *   `monthDays = {锚点日}`；BYMONTHDAY 与 BYDAY 互斥——对应本库互斥选择器；
+ *   带序数 BYDAY 须为完整笛卡尔积——共享单一序数（1MO,1TU）或每星期带全部
+ *   序数（1MO,-1MO,1TU,-1TU），混合序数（MO,1TU）与非完整积（1MO,-1TU）
+ *   拒绝：RFC 条目独立展开，非完整积导入会静默扩集）；
  *   `FREQ=YEARLY`（不得带任何 BY*；锚点 2/29 的语义分歧见 [toRrule]）
  * - `COUNT` 接受；`UNTIL` 拒绝——本库的 until 是 nextTarget 的查询期上限而非
  *   日程状态，持久化结束时间请在调用方保存并与查询同传
@@ -234,6 +237,26 @@ public fun parseRrule(
             } else if (byDay != null) {
                 weekdays = byDay.map { it.first.codeToWeekday() }.toSet()
                 weekdayOrdinals = byDay.mapNotNull { it.second }.toSet()
+                // RFC BYDAY 的条目各自独立展开，本库选择器却是 weekdays × weekdayOrdinals 的
+                // 笛卡尔积：仅完整积形态可无损导入——全无序数（积退化为纯星期集）、
+                // 共享单一序数（1MO,1TU）或每星期都带全部序数（1MO,-1MO,1TU,-1TU）；
+                // 其余（混合序数 MO,1TU、缺组合 1MO,-1TU）导入会把 RFC 的出现集
+                // 静默扩成完整积，拒绝
+                if (weekdayOrdinals.isNotEmpty()) {
+                    if (byDay.any { it.second == null }) {
+                        throw unsupported(
+                            "mixed ordinal and ordinal-less BYDAY entries (like MO,1TU) do not form the cartesian " +
+                                "product weekdays x ordinals that the library's selectors represent",
+                        )
+                    }
+                    if (byDay.toSet().size != weekdays.size * weekdayOrdinals.size) {
+                        throw unsupported(
+                            "BYDAY entries expand independently in RFC 5545 while the library's selectors are the " +
+                                "cartesian product weekdays x ordinals; only complete products (a shared single " +
+                                "ordinal like 1MO,1TU, or every weekday carrying every ordinal) map losslessly",
+                        )
+                    }
+                }
             } else {
                 // 无 BY*：RFC 语义为「DTSTART 日号、缺日跳过」——精确映射为单元素选择器
                 monthDays = setOf(anchorDate.day)
@@ -341,12 +364,13 @@ private fun Schedule.canonicalByDay(): List<String> {
         if (weekdayOrdinals.isEmpty()) {
             entries += weekday.dayOfWeekCode()
         } else {
-            // 序数按时间序：正数升序，负数绝对值降序（倒数第 2 早于倒数第 1）
+            // 序数按时间序：正数升序在前，负数按绝对值降序在后（倒数第 2 早于
+            // 倒数第 1）——负数区间内升序恰为时间序，与 canonicalMonthDays 同构
             val chronological =
                 weekdayOrdinals.sortedWith(
                     compareBy(
                         { it <= 0 },
-                        { if (it > 0) it else -it },
+                        { it },
                     ),
                 )
             for (ordinal in chronological) entries += "$ordinal${weekday.dayOfWeekCode()}"

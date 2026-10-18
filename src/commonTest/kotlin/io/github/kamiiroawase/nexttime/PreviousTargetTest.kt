@@ -129,6 +129,19 @@ class PreviousTargetTest {
             )
 
         assertEquals(9999, lunarDayOf(lunarSchedule.previousTarget(zdt(9999, 12, 31) + 1.days, shanghai)!!, shanghai).year)
+
+        // 周选择器同理：锚点在 1970 年前（锚点周起点为负 epoch days）时，回退起点
+        // 的本地周估计不得溢出钳到 0，须自范围上界回退到界内最后一个周一
+        // （1900-01-01 是周一；9999-12-31 是周五，界内最后一个周一为 12-27）
+        val weekdaySchedule =
+            schedule(
+                utcMillis(LocalDate(1900, 1, 1)),
+                interval = 1,
+                unit = 2,
+                weekdays = setOf(WeekDay.MONDAY),
+            )
+
+        assertEquals(zdt(9999, 12, 27), weekdaySchedule.previousTarget(zdt(9999, 12, 31) + 30.days, shanghai))
     }
 
     @Test

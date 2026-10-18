@@ -111,6 +111,15 @@ class RruleTest {
             ).toRrule(),
         )
         assertEquals(
+            "FREQ=MONTHLY;BYDAY=-2TU,-1TU",
+            scheduleOf(
+                LocalDate(2026, 9, 29),
+                unit = RepeatUnit.MONTH,
+                weekdays = setOf(WeekDay.TUESDAY),
+                weekdayOrdinals = setOf(-1, -2),
+            ).toRrule(),
+        )
+        assertEquals(
             "FREQ=MONTHLY;BYDAY=MO,WE",
             scheduleOf(LocalDate(2026, 9, 7), unit = RepeatUnit.MONTH, weekdays = setOf(WeekDay.MONDAY, WeekDay.WEDNESDAY)).toRrule(),
         )
@@ -163,6 +172,18 @@ class RruleTest {
         val nthTuesday = parseRrule("FREQ=MONTHLY;BYDAY=2TU,-1TU", LocalDateTime(LocalDate(2026, 9, 8), LocalTime(9, 0)))
         assertEquals(setOf(WeekDay.TUESDAY), nthTuesday.weekdays)
         assertEquals(setOf(2, -1), nthTuesday.weekdayOrdinals)
+
+        // 共享单一序数：星期集 × 单序数恰为条目集，无损导入
+        val sharedOrdinal =
+            parseRrule("FREQ=MONTHLY;BYDAY=1MO,1TU", LocalDateTime(LocalDate(2026, 9, 7), LocalTime(9, 0)))
+        assertEquals(setOf(WeekDay.MONDAY, WeekDay.TUESDAY), sharedOrdinal.weekdays)
+        assertEquals(setOf(1), sharedOrdinal.weekdayOrdinals)
+
+        // 完整积：每星期都带全部序数
+        val fullProduct =
+            parseRrule("FREQ=MONTHLY;BYDAY=1MO,-1MO,1TU,-1TU", LocalDateTime(LocalDate(2026, 9, 7), LocalTime(9, 0)))
+        assertEquals(setOf(WeekDay.MONDAY, WeekDay.TUESDAY), fullProduct.weekdays)
+        assertEquals(setOf(1, -1), fullProduct.weekdayOrdinals)
 
         val hourly = parseRrule("FREQ=HOURLY;INTERVAL=8", LocalDateTime(LocalDate(2026, 8, 26), LocalTime(8, 0)))
         assertEquals(RepeatUnit.HOUR, hourly.repeatUnit)
@@ -253,6 +274,8 @@ class RruleTest {
                 "FREQ=DAILY;BYDAY=MO" to "日重复带 BYDAY",
                 "FREQ=YEARLY;BYMONTHDAY=15" to "年重复带 BYMONTHDAY",
                 "FREQ=MONTHLY;BYDAY=TU;BYMONTHDAY=15" to "BYDAY 与 BYMONTHDAY 并存",
+                "FREQ=MONTHLY;BYDAY=1MO,-1TU" to "带序数 BYDAY 非完整笛卡尔积",
+                "FREQ=MONTHLY;BYDAY=MO,1TU" to "BYDAY 混合序数与无序数",
                 "FREQ=MONTHLY;BYMONTHDAY=0" to "BYMONTHDAY 为 0",
                 "FREQ=MONTHLY;BYDAY=XU" to "未知星期代码",
                 "FREQ=WEEKLY;RRULE:X" to "未知键",
